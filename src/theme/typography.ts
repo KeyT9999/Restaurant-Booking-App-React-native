@@ -1,0 +1,98 @@
+import { TextStyle } from 'react-native';
+import { T } from './tokens';
+
+export const typography = {
+  displayXL: {
+    fontFamily: T.font.display,
+    fontSize: 44,
+    fontWeight: '700',
+    lineHeight: 48,
+    color: T.color.text1,
+  } as TextStyle,
+  displayLG: {
+    fontFamily: T.font.display,
+    fontSize: 32,
+    fontWeight: '700',
+    lineHeight: 38,
+    color: T.color.text1,
+  } as TextStyle,
+  displayMD: {
+    fontFamily: T.font.display,
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 28,
+    color: T.color.text1,
+  } as TextStyle,
+  displaySM: {
+    fontFamily: T.font.display,
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 24,
+    color: T.color.text1,
+  } as TextStyle,
+  titleLG: {
+    fontFamily: T.font.bold,
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 26,
+    color: T.color.text1,
+  } as TextStyle,
+  titleMD: {
+    fontFamily: T.font.semibold,
+    fontSize: 18,
+    fontWeight: '600',
+    lineHeight: 22,
+    color: T.color.text1,
+  } as TextStyle,
+  titleSM: {
+    fontFamily: T.font.semibold,
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 18,
+    color: T.color.text1,
+  } as TextStyle,
+  bodyLG: {
+    fontFamily: T.font.regular,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 22,
+    color: T.color.text2,
+  } as TextStyle,
+  bodyMD: {
+    fontFamily: T.font.regular,
+    fontSize: 14,
+    fontWeight: '400',
+    lineHeight: 20,
+    color: T.color.text2,
+  } as TextStyle,
+  bodySM: {
+    fontFamily: T.font.regular,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 18,
+    color: T.color.text2,
+  } as TextStyle,
+  caption: {
+    fontFamily: T.font.medium,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 16,
+    color: T.color.text3,
+  } as TextStyle,
+  overline: {
+    fontFamily: T.font.semibold,
+    fontSize: 11,
+    fontWeight: '600',
+    lineHeight: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    color: T.color.text3,
+  } as TextStyle,
+  micro: {
+    fontFamily: T.font.semibold,
+    fontSize: 10,
+    fontWeight: '600',
+    lineHeight: 12,
+    color: T.color.text3,
+  } as TextStyle,
+} as const;

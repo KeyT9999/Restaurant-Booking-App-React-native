@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
@@ -39,3 +40,20 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# IDE
+.vscode/
+.idea/
+
+# AI Agent files
+.claude/
+CLAUDE.md
+AGENTS.md
+
+# UI mẫu (thiết kế tham khảo)
+UI MAU/
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
