@@ -14,14 +14,41 @@ export default function IPSettingsScreen() {
   const router = useRouter();
   const { showToast } = useToast();
   const [ipUrl, setIpUrl] = useState('');
+  const [ipv4, setIpv4] = useState('');
 
   useEffect(() => {
     const loadIP = async () => {
       const currentUrl = await getCustomBaseURL();
       setIpUrl(currentUrl);
+      
+      // Parse IPv4 if it matches the pattern
+      const match = currentUrl.match(/https?:\/\/([^:/]+):/);
+      if (match) {
+        setIpv4(match[1]);
+      }
     };
     loadIP();
   }, []);
+
+  const handleIpv4Change = (val: string) => {
+    setIpv4(val);
+    const clean = val.trim();
+    if (clean) {
+      setIpUrl(`http://${clean}:3001/api/v1`);
+    } else {
+      setIpUrl('');
+    }
+  };
+
+  const handleIpUrlChange = (val: string) => {
+    setIpUrl(val);
+    const match = val.match(/https?:\/\/([^:/]+):/);
+    if (match) {
+      setIpv4(match[1]);
+    } else {
+      setIpv4('');
+    }
+  };
 
   const handleSave = async () => {
     const trimmedUrl = ipUrl.trim();
@@ -53,6 +80,12 @@ export default function IPSettingsScreen() {
     try {
       await setCustomBaseURL(defaultUrl);
       setIpUrl(defaultUrl);
+      const match = defaultUrl.match(/https?:\/\/([^:/]+):/);
+      if (match) {
+        setIpv4(match[1]);
+      } else {
+        setIpv4('');
+      }
       showToast('Đã đặt lại cấu hình mặc định', 'success');
       Alert.alert(
         'Đã đặt lại',
@@ -84,14 +117,29 @@ export default function IPSettingsScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardSectionTitle}>Đường dẫn API Gateway</Text>
-          <Text style={styles.cardSectionSub}>Nhập đầy đủ giao thức http://, địa chỉ IP và cổng của máy tính.</Text>
+          <Text style={styles.cardSectionTitle}>Nhập nhanh địa chỉ IPv4</Text>
+          <Text style={styles.cardSectionSub}>Nhập địa chỉ IPv4 máy tính chạy Backend của bạn.</Text>
           
+          <TextField
+            label="Địa chỉ IPv4 máy tính"
+            value={ipv4}
+            onChangeText={handleIpv4Change}
+            placeholder="Ví dụ: 192.168.1.8"
+            keyboardType="numeric"
+            autoCapitalize="none"
+            style={styles.field}
+          />
+
+          <View style={{ height: 16 }} />
+
+          <Text style={styles.cardSectionTitle}>Đường dẫn API Gateway đầy đủ</Text>
+          <Text style={styles.cardSectionSub}>Tự động tạo ra hoặc có thể chỉnh sửa thủ công nếu dùng cổng (port) khác.</Text>
+
           <TextField
             label="Địa chỉ URL máy chủ API"
             value={ipUrl}
-            onChangeText={setIpUrl}
-            placeholder="Ví dụ: http://192.168.1.15:3001/api/v1"
+            onChangeText={handleIpUrlChange}
+            placeholder="Ví dụ: http://192.168.1.8:3001/api/v1"
             autoCapitalize="none"
             style={styles.field}
           />

@@ -7,10 +7,12 @@ export interface User {
   address: string | null;
   role: 'customer' | 'restaurant_owner' | 'admin';
   avatarUrl: string | null;
+  isGoogleAccount?: boolean;
   emailVerified: boolean;
   active: boolean;
   loyaltyPoints: number;
   totalPointsEarned: number;
+  lastLogin?: string | null;
   createdAt: string;
   updatedAt: string;
 }

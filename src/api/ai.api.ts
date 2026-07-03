@@ -1,19 +1,165 @@
 import { apiClient } from './client';
 import { getToken } from '../auth/token';
 
+const DEFAULT_STREAM_TIMEOUT_MS = 45000;
+
+export class AIStreamError extends Error {
+  code: string;
+  status?: number;
+  retryable: boolean;
+
+  constructor(
+    message: string,
+    {
+      code = 'AI_UNAVAILABLE',
+      status,
+      retryable = true,
+    }: {
+      code?: string;
+      status?: number;
+      retryable?: boolean;
+    } = {}
+  ) {
+    super(message);
+    this.name = 'AIStreamError';
+    this.code = code;
+    this.status = status;
+    this.retryable = retryable;
+  }
+}
+
+export type AIChatHistoryItem = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export type AIStreamEventName =
+  | 'start'
+  | 'delta'
+  | 'completed'
+  | 'tool_started'
+  | 'tool_completed'
+  | 'result'
+  | 'error'
+  | 'done'
+  | 'message';
+
+export type AIStreamEventPayload = {
+  event: AIStreamEventName;
+  data: any;
+};
+
+type AIStreamOptions = {
+  message: string;
+  history?: AIChatHistoryItem[];
+  pageContext?: Record<string, unknown> | null;
+  ownerContext?: Record<string, unknown> | null;
+  adminContext?: Record<string, unknown> | null;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  onEvent?: (payload: AIStreamEventPayload) => void;
+};
+
+const parseEventBlock = (block: string): AIStreamEventPayload | null => {
+  let event: AIStreamEventName = 'message';
+  const dataLines: string[] = [];
+
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim() as AIStreamEventName;
+    }
+
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+
+  if (dataLines.length === 0) {
+    return null;
+  }
+
+  try {
+    return {
+      event,
+      data: JSON.parse(dataLines.join('\n')),
+    };
+  } catch {
+    throw new AIStreamError('Du lieu phan hoi tu tro ly khong hop le.', {
+      code: 'AI_STREAM_INVALID',
+      retryable: false,
+    });
+  }
+};
+
+const createSseParser = (onEvent: (payload: AIStreamEventPayload) => void) => {
+  let buffer = '';
+
+  const flushBlocks = (flushRemainder = false) => {
+    const normalized = buffer.replace(/\r\n/g, '\n');
+    const blocks = normalized.split('\n\n');
+    buffer = flushRemainder ? '' : blocks.pop() || '';
+
+    const completeBlocks = flushRemainder ? blocks.filter(Boolean) : blocks;
+    for (const block of completeBlocks) {
+      const parsed = parseEventBlock(block);
+      if (parsed) {
+        onEvent(parsed);
+      }
+    }
+
+    if (flushRemainder && buffer.trim()) {
+      const parsed = parseEventBlock(buffer);
+      if (parsed) {
+        onEvent(parsed);
+      }
+      buffer = '';
+    }
+  };
+
+  return {
+    feed(chunk: string) {
+      buffer += chunk;
+      flushBlocks(false);
+    },
+    end() {
+      if (buffer.trim()) {
+        const parsed = parseEventBlock(buffer.replace(/\r\n/g, '\n'));
+        if (parsed) {
+          onEvent(parsed);
+        }
+      }
+
+      buffer = '';
+    },
+  };
+};
+
+const readHttpError = async (response: Response) => {
+  let payload: any = null;
+
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  throw new AIStreamError(payload?.message || 'Khong the ket noi voi Tro ly BookEat.', {
+    code: payload?.code || 'AI_UNAVAILABLE',
+    status: response.status,
+    retryable: ![400, 401, 403].includes(response.status),
+  });
+};
+
 export const aiApi = {
-  // Get API Base Url
   getApiUrl() {
     return apiClient.defaults.baseURL || 'http://localhost:3001/api/v1';
   },
 
-  // Get Pending Action details
   async getPendingAction(id: string) {
     const res = await apiClient.get(`/ai/pending-actions/${id}`);
     return res.data;
   },
 
-  // Confirm Pending Action (finalize booking)
   async confirmPendingAction(id: string) {
     const res = await apiClient.post(`/ai/pending-actions/${id}/confirm`, {
       confirmation: true,
@@ -21,7 +167,6 @@ export const aiApi = {
     return res.data;
   },
 
-  // Cancel Pending Action
   async cancelPendingAction(id: string, reason?: string) {
     const res = await apiClient.post(`/ai/pending-actions/${id}/cancel`, {
       reason,
@@ -29,144 +174,133 @@ export const aiApi = {
     return res.data;
   },
 
-  // Call mock chatbot response if streaming is disabled or not available
   async mockChat(message: string) {
     const res = await apiClient.post('/ai/mock-chat', { message });
     return res.data;
   },
 
-  // SSE Stream Chat Client for Expo / React Native
-  async streamChat(
-    message: string,
-    history: Array<{ role: 'user' | 'assistant'; content: string }>,
-    pageContext: any,
-    onChunk: (text: string) => void,
-    onToolStart: (toolName: string, label: string) => void,
-    onToolComplete: (toolName: string, status: string, data?: any) => void,
-    onError: (err: any) => void,
-    onDone: () => void
-  ) {
+  async streamChat({
+    message,
+    history = [],
+    pageContext = null,
+    ownerContext = null,
+    adminContext = null,
+    signal,
+    timeoutMs = DEFAULT_STREAM_TIMEOUT_MS,
+    onEvent = () => {},
+  }: AIStreamOptions) {
     const token = await getToken();
     const url = `${this.getApiUrl()}/ai/chat/stream`;
+    const requestController = new AbortController();
+    let timedOut = false;
+    let receivedDone = false;
+    let streamError: AIStreamError | null = null;
+
+    const abortFromCaller = () => requestController.abort(signal?.reason);
+    if (signal?.aborted) {
+      abortFromCaller();
+    } else {
+      signal?.addEventListener('abort', abortFromCaller, { once: true });
+    }
+
+    const timeoutId = globalThis.setTimeout(() => {
+      timedOut = true;
+      requestController.abort();
+    }, timeoutMs);
 
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
+          Authorization: token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify({
           message,
           history,
-          pageContext,
+          ...(pageContext ? { pageContext } : {}),
+          ...(ownerContext ? { ownerContext } : {}),
+          ...(adminContext ? { adminContext } : {}),
         }),
+        signal: requestController.signal,
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        await readHttpError(response);
       }
 
-      // Check if body is readable
+      const parser = createSseParser((payload) => {
+        if (payload.event === 'error') {
+          streamError = new AIStreamError(
+            payload.data?.message || 'Phan hoi bi gian doan.',
+            {
+              code: payload.data?.code || 'AI_UNAVAILABLE',
+              retryable: payload.data?.retryable !== false,
+            }
+          );
+        }
+
+        if (payload.event === 'done') {
+          receivedDone = true;
+        }
+
+        onEvent(payload);
+      });
+
       if (!response.body) {
-        // Fallback: if stream is not supported in the current JS engine, read it all as text
         const text = await response.text();
-        // Parse mock lines
-        this.parseSseText(text, onChunk, onToolStart, onToolComplete, onDone);
-        return;
-      }
+        parser.feed(text);
+        parser.end();
+      } else {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // keep the last partial line in buffer
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-
-          if (trimmed.startsWith('data:')) {
-            const dataStr = trimmed.slice(5).trim();
-            if (dataStr === '[DONE]') {
-              continue;
-            }
-            try {
-              const parsed = JSON.parse(dataStr);
-              this.handleSseEvent(parsed, onChunk, onToolStart, onToolComplete);
-            } catch (e) {
-              // Ignore line parse errors
-            }
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+            break;
           }
+
+          parser.feed(decoder.decode(value, { stream: true }));
         }
+
+        parser.feed(decoder.decode());
+        parser.end();
       }
 
-      // Parse remaining buffer
-      if (buffer.trim()) {
-        if (buffer.trim().startsWith('data:')) {
-          try {
-            const parsed = JSON.parse(buffer.slice(5).trim());
-            this.handleSseEvent(parsed, onChunk, onToolStart, onToolComplete);
-          } catch (e) {}
-        }
+      if (streamError) {
+        throw streamError;
       }
 
-      onDone();
+      if (!receivedDone) {
+        throw new AIStreamError('Phan hoi bi ngat giua chung. Vui long thu lai.', {
+          code: 'AI_STREAM_INTERRUPTED',
+        });
+      }
     } catch (error) {
-      onError(error);
-    }
-  },
-
-  // Parse bulk text block for SSE events
-  parseSseText(
-    text: string,
-    onChunk: (text: string) => void,
-    onToolStart: (toolName: string, label: string) => void,
-    onToolComplete: (toolName: string, status: string, data?: any) => void,
-    onDone: () => void
-  ) {
-    const lines = text.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('data:')) {
-        const dataStr = trimmed.slice(5).trim();
-        if (dataStr === '[DONE]') continue;
-        try {
-          const parsed = JSON.parse(dataStr);
-          this.handleSseEvent(parsed, onChunk, onToolStart, onToolComplete);
-        } catch (e) {}
+      if (error instanceof AIStreamError) {
+        throw error;
       }
-    }
-    onDone();
-  },
 
-  // Router for parsing parsed JSON SSE packages
-  handleSseEvent(
-    event: any,
-    onChunk: (text: string) => void,
-    onToolStart: (toolName: string, label: string) => void,
-    onToolComplete: (toolName: string, status: string, data?: any) => void
-  ) {
-    if (event.text) {
-      onChunk(event.text);
-    } else if (event.delta) {
-      onChunk(event.delta);
-    } else if (event.type === 'delta') {
-      onChunk(event.text || '');
-    } else if (event.tool || event.type === 'tool_started') {
-      const toolName = event.tool || event.label || 'Tool';
-      const label = event.label || 'Đang thực hiện...';
-      onToolStart(toolName, label);
-    } else if (event.type === 'tool_completed') {
-      onToolComplete(event.tool, event.status, event.result || event);
-    } else if (event.result) {
-      onToolComplete(event.tool || 'result', 'success', event.result);
+      if (timedOut) {
+        throw new AIStreamError('Tro ly phan hoi qua lau. Vui long thu lai.', {
+          code: 'AI_TIMEOUT',
+        });
+      }
+
+      if (signal?.aborted || requestController.signal.aborted) {
+        throw new AIStreamError('Phan hoi da duoc dung.', {
+          code: 'AI_CANCELLED',
+          retryable: false,
+        });
+      }
+
+      throw new AIStreamError('Khong the ket noi voi Tro ly BookEat.', {
+        code: 'AI_UNAVAILABLE',
+      });
+    } finally {
+      globalThis.clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', abortFromCaller);
     }
   },
 };

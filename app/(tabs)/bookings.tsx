@@ -118,7 +118,12 @@ export default function BookingsListScreen() {
             const restInfo = (item as any).restaurant || {};
             return (
               <Pressable
-                onPress={() => router.push(`/booking/${item.id}`)}
+                onPress={() =>
+                  router.push({
+                    pathname: '/booking/[id]',
+                    params: { id: item.id },
+                  })
+                }
                 style={styles.bookingCard}
               >
                 <View style={styles.cardHeader}>

@@ -5,6 +5,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { recommendationApi } from '@/src/api/recommendation.api';
 import { restaurantApi } from '@/src/api/restaurant.api';
 import { notificationApi } from '@/src/api/notification.api';
+import { useLocation } from '@/src/hooks/useLocation';
 import { T } from '@/src/theme/tokens';
 import { typography } from '@/src/theme/typography';
 import { RestaurantCard } from '@/src/components/cards/RestaurantCard';
@@ -19,6 +20,7 @@ import { Restaurant } from '@/src/types/restaurant.types';
 export default function HomeScreen() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
+  const { location, requestLocation } = useLocation();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,10 +29,18 @@ export default function HomeScreen() {
   const [selectedCuisine, setSelectedCuisine] = useState<string>('Tất cả');
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (coords?: { latitude: number; longitude: number } | null) => {
     try {
+      const activeLocation = coords === undefined ? location : coords;
+      const homeParams = activeLocation
+        ? {
+            lat: activeLocation.latitude,
+            lng: activeLocation.longitude,
+          }
+        : undefined;
+
       const [recRes, cuisineRes] = await Promise.all([
-        recommendationApi.getHome(),
+        recommendationApi.getHome(homeParams),
         restaurantApi.getCuisineTypes(),
       ]);
 
@@ -56,7 +66,11 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, location]);
+
+  useEffect(() => {
+    requestLocation().catch(() => null);
+  }, [requestLocation]);
 
   useEffect(() => {
     fetchData();
@@ -64,7 +78,13 @@ export default function HomeScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchData();
+    requestLocation()
+      .then((coords) => {
+        fetchData(coords);
+      })
+      .catch(() => {
+        fetchData(null);
+      });
   };
 
   // Lọc danh sách gợi ý theo Cuisine được chọn
@@ -76,7 +96,10 @@ export default function HomeScreen() {
     return list.filter((r) => r.cuisineTypes.includes(selectedCuisine));
   };
 
-  const featuredRestaurants = homeData?.restaurantsForYou || [];
+  const featuredRestaurants =
+    homeData?.restaurantsForYou?.length > 0
+      ? homeData.restaurantsForYou
+      : homeData?.popularRestaurants || [];
   const suggestionRestaurants = getFilteredSuggestions();
 
   return (

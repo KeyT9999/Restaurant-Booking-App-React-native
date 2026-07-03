@@ -119,6 +119,22 @@ export default function RestaurantDetail() {
     }
   };
 
+  const handleWriteReview = () => {
+    if (!isAuthenticated) {
+      showToast('Đăng nhập để viết đánh giá', 'info');
+      router.push('/(auth)/login');
+      return;
+    }
+
+    router.push({
+      pathname: '/review/write',
+      params: {
+        restaurantId: id,
+        restaurantName: restaurant?.name || 'Nhà hàng',
+      },
+    });
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -254,6 +270,13 @@ export default function RestaurantDetail() {
             ) : (
               <EmptyState icon="comment-o" title="Chưa có đánh giá" description="Hãy là người đầu tiên đặt bàn và gửi đánh giá!" />
             )
+          )}
+          {activeTab === 'reviews' && (
+            <Button
+              label="Viết đánh giá ⭐"
+              onPress={handleWriteReview}
+              style={styles.writeReviewButton}
+            />
           )}
         </View>
       </ScrollView>
@@ -483,6 +506,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     marginTop: 4,
+  },
+  writeReviewButton: {
+    width: '100%',
+    marginTop: T.space.lg,
   },
   bottomBar: {
     position: 'absolute',

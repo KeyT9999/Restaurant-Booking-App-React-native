@@ -1,38 +1,90 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { FontAwesome } from '@expo/vector-icons';
+import { bookingApi } from '@/src/api/booking.api';
 import { reviewApi } from '@/src/api/review.api';
-import { T } from '@/src/theme/tokens';
-import { typography } from '@/src/theme/typography';
 import { BackButton } from '@/src/components/ui/BackButton';
 import { Button } from '@/src/components/ui/Button';
 import { useToast } from '@/src/components/ui/Toast';
-import { FontAwesome } from '@expo/vector-icons';
+import { T } from '@/src/theme/tokens';
+import { typography } from '@/src/theme/typography';
+import { Booking } from '@/src/types/booking.types';
+
+const getRestaurantIdFromBooking = (booking: Booking) => {
+  if (typeof booking.restaurantId === 'string') {
+    return booking.restaurantId;
+  }
+
+  return booking.restaurantId?.id || null;
+};
 
 export default function WriteReviewScreen() {
   const router = useRouter();
   const { showToast } = useToast();
   const { bookingId, restaurantId, restaurantName } = useLocalSearchParams<{
-    bookingId: string;
-    restaurantId: string;
-    restaurantName: string;
+    bookingId?: string;
+    restaurantId?: string;
+    restaurantName?: string;
   }>();
 
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [resolvedBookingId, setResolvedBookingId] = useState<string | null>(bookingId || null);
+  const [resolvingBooking, setResolvingBooking] = useState(false);
+
+  const effectiveBookingId = useMemo(() => bookingId || resolvedBookingId, [bookingId, resolvedBookingId]);
+
+  useEffect(() => {
+    const resolveBookingId = async () => {
+      if (bookingId || !restaurantId) return;
+
+      setResolvingBooking(true);
+      try {
+        const res = await bookingApi.getMyBookings({ filter: 'past', limit: 100 });
+        const bookings: Booking[] = res?.data?.bookings || [];
+        const matchedBooking = bookings.find((item) => {
+          return item.status === 'completed' && !item.reviewed && getRestaurantIdFromBooking(item) === restaurantId;
+        });
+
+        if (matchedBooking) {
+          setResolvedBookingId(matchedBooking.id);
+          return;
+        }
+
+        showToast('Bạn cần hoàn thành một booking tại nhà hàng này trước khi viết đánh giá', 'info');
+      } catch (error: any) {
+        const msg = error?.response?.data?.message || 'Không thể kiểm tra booking phù hợp để đánh giá';
+        showToast(msg, 'error');
+      } finally {
+        setResolvingBooking(false);
+      }
+    };
+
+    resolveBookingId();
+  }, [bookingId, restaurantId, showToast]);
 
   const handleSubmit = async () => {
-    if (!bookingId || !restaurantId) return;
+    if (!effectiveBookingId || !restaurantId) {
+      showToast('Bạn chưa có booking phù hợp để đánh giá nhà hàng này', 'info');
+      return;
+    }
+
     if (!comment.trim()) {
       showToast('Vui lòng nhập nội dung đánh giá', 'info');
+      return;
+    }
+
+    if (comment.trim().length < 10) {
+      showToast('Nội dung đánh giá phải có ít nhất 10 ký tự', 'info');
       return;
     }
 
     setSubmitting(true);
     try {
       const res = await reviewApi.createReview({
-        bookingId,
+        bookingId: effectiveBookingId,
         restaurantId,
         rating,
         comment: comment.trim(),
@@ -54,7 +106,6 @@ export default function WriteReviewScreen() {
 
   return (
     <View style={styles.container}>
-      {/* ─── Header ─── */}
       <View style={styles.header}>
         <BackButton onPress={() => router.back()} style={styles.backBtn} />
         <View style={styles.headerTextWrapper}>
@@ -63,11 +114,24 @@ export default function WriteReviewScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {resolvingBooking ? (
+          <View style={styles.resolvingBox}>
+            <ActivityIndicator size="small" color={T.color.primary} />
+            <Text style={styles.resolvingText}>Đang kiểm tra booking phù hợp để viết đánh giá...</Text>
+          </View>
+        ) : null}
+
+        {!effectiveBookingId && !resolvingBooking ? (
+          <View style={styles.noticeBox}>
+            <Text style={styles.noticeTitle}>Chưa thể viết đánh giá</Text>
+            <Text style={styles.noticeText}>Bạn cần có một booking đã hoàn thành tại nhà hàng này và chưa đánh giá trước đó.</Text>
+          </View>
+        ) : null}
+
         <Text style={styles.subtext}>
-          Chia sẻ trải nghiệm của bạn tại <Text style={{ color: T.color.primary, fontWeight: '700' }}>{restaurantName || 'Nhà hàng'}</Text>
+          Chia sẻ trải nghiệm của bạn tại <Text style={styles.restaurantName}>{restaurantName || 'Nhà hàng'}</Text>
         </Text>
 
-        {/* Star Rating Selector */}
         <View style={styles.ratingBox}>
           {Array.from({ length: 5 }).map((_, index) => {
             const starValue = index + 1;
@@ -80,10 +144,9 @@ export default function WriteReviewScreen() {
           })}
         </View>
         <Text style={styles.ratingLabel}>
-          {rating === 5 ? 'Tuyệt vời! 😍' : rating === 4 ? 'Rất tốt! 😊' : rating === 3 ? 'Bình thường! 😐' : rating === 2 ? 'Tệ! 😞' : 'Quá tệ! 😡'}
+          {rating === 5 ? 'Tuyệt vời!' : rating === 4 ? 'Rất tốt!' : rating === 3 ? 'Bình thường!' : rating === 2 ? 'Tệ!' : 'Quá tệ!'}
         </Text>
 
-        {/* Review Comments */}
         <View style={styles.inputBox}>
           <Text style={styles.label}>Nội dung đánh giá</Text>
           <TextInput
@@ -99,11 +162,10 @@ export default function WriteReviewScreen() {
         </View>
       </ScrollView>
 
-      {/* ─── Action Footer ─── */}
       <View style={styles.bottomBar}>
         <Button
           label="Gửi đánh giá"
-          variant={submitting ? 'loading' : 'primary'}
+          variant={submitting ? 'loading' : !effectiveBookingId || resolvingBooking ? 'disabled' : 'primary'}
           onPress={handleSubmit}
           style={styles.submitBtn}
         />
@@ -140,11 +202,50 @@ const styles = StyleSheet.create({
     paddingBottom: 150,
     paddingHorizontal: T.space.lg,
   },
+  resolvingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: T.space.sm,
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 150, 83, 0.2)',
+    borderRadius: T.radius.md,
+    padding: T.space.md,
+    marginTop: T.space.lg,
+  },
+  resolvingText: {
+    color: T.color.text2,
+    fontSize: 12,
+  },
+  noticeBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: T.color.border,
+    borderRadius: T.radius.md,
+    padding: T.space.md,
+    marginTop: T.space.lg,
+  },
+  noticeTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  noticeText: {
+    color: T.color.text2,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   subtext: {
     color: T.color.text2,
     fontSize: 14,
     textAlign: 'center',
     marginVertical: T.space.xl,
+  },
+  restaurantName: {
+    color: T.color.primary,
+    fontWeight: '700',
   },
   ratingBox: {
     flexDirection: 'row',

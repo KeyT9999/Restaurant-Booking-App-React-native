@@ -1,23 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { apiClient } from '../api/client';
 import { setToken as saveSecureToken, getToken as getSecureToken, clearToken as deleteSecureToken } from './token';
-
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  fullName: string;
-  phoneNumber: string | null;
-  address: string | null;
-  role: 'customer' | 'restaurant_owner' | 'admin';
-  avatarUrl: string | null;
-  emailVerified: boolean;
-  active: boolean;
-  loyaltyPoints: number;
-  totalPointsEarned: number;
-  createdAt: string;
-  updatedAt: string;
-}
+import { User } from '../types/user.types';
 
 interface AuthContextType {
   user: User | null;
@@ -28,6 +12,7 @@ interface AuthContextType {
   register: (fullName: string, email: string, phoneNumber: string, password: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateUser: (user: User | null) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -159,6 +144,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const updateUser = (nextUser: User | null) => {
+    setUser(nextUser);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -170,6 +159,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         register,
         logout,
         refreshProfile,
+        updateUser,
       }}
     >
       {children}
