@@ -52,15 +52,32 @@ export interface Restaurant {
   updatedAt: string;
 }
 
+export interface MenuCategory {
+  id?: string;
+  _id?: string;
+  name: string;
+  description?: string | null;
+}
+
 export interface MenuItem {
   id: string;
-  restaurantId: string;
+  restaurantId?: string;
   name: string;
-  description: string;
+  description: string | null;
   price: number;
   image: string | null;
-  category: string;
-  active: boolean;
+  category?: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  active?: boolean;
+  isAvailable?: boolean;
+  status?: string | null;
+}
+
+export interface RestaurantMenuResponse {
+  menuItems: MenuItem[];
+  items: MenuItem[];
+  categories: MenuCategory[];
 }
 
 export interface HomeRecommendations {

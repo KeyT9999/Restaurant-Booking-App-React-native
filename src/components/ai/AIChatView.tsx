@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -44,11 +45,18 @@ type ToolStatus = {
   status: 'running' | 'completed';
 };
 
+type AIResult = {
+  type?: string;
+  version?: number;
+  payload?: any;
+};
+
 type ChatMessage = {
   id: string;
   role: MessageRole;
   content: string;
   status: MessageStatus;
+  results: AIResult[];
   pendingAction?: PendingAction;
   toolStatus?: ToolStatus | null;
   toolError?: string | null;
@@ -89,6 +97,7 @@ const createMessage = (
   role,
   content,
   status,
+  results: [],
   pendingAction: undefined,
   toolStatus: null,
   toolError: null,
@@ -179,6 +188,17 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
     );
   };
 
+  const handleOpenRestaurant = (restaurantId?: string | null) => {
+    if (!restaurantId) {
+      return;
+    }
+
+    router.push({
+      pathname: '/restaurants/[id]',
+      params: { id: restaurantId },
+    });
+  };
+
   const runStream = async ({ message, assistantMessageId, history }: RetryPayload) => {
     const abortController = new AbortController();
     activeAbortControllerRef.current = abortController;
@@ -225,13 +245,10 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
           }
 
           if (event === 'tool_completed') {
-            const failed = Boolean(data?.status && data.status !== 'success');
             updateAssistantMessage(assistantMessageId, (assistant) => ({
               ...assistant,
               toolStatus: null,
-              toolError: failed
-                ? data?.message || 'Khong the tai du lieu cho yeu cau nay.'
-                : null,
+              toolError: null,
             }));
             return;
           }
@@ -239,13 +256,12 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
           if (event === 'result' && data?.result) {
             receivedResult = true;
             const pendingAction = mapPendingAction(data.result);
-            if (pendingAction) {
-              updateAssistantMessage(assistantMessageId, (assistant) => ({
-                ...assistant,
-                pendingAction,
-                toolError: null,
-              }));
-            }
+            updateAssistantMessage(assistantMessageId, (assistant) => ({
+              ...assistant,
+              results: [...assistant.results, data.result],
+              pendingAction: pendingAction || assistant.pendingAction,
+              toolError: null,
+            }));
             return;
           }
 
@@ -339,6 +355,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
       ...assistant,
       content: '',
       status: 'streaming',
+      results: [],
       pendingAction: undefined,
       toolStatus: null,
       toolError: null,
@@ -407,6 +424,136 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
   };
 
   const showSuggestions = messages.length === 1 && !sending;
+
+  const renderRestaurantCard = (restaurant: any, key: string) => {
+    const restaurantId =
+      restaurant?.id || restaurant?.restaurantId || restaurant?.metadata?.restaurantId || null;
+    const imageUri =
+      restaurant?.image ||
+      restaurant?.coverImageUrl ||
+      restaurant?.coverImage ||
+      restaurant?.primaryImage ||
+      restaurant?.logo ||
+      null;
+    const cuisineText = Array.isArray(restaurant?.cuisineTypes)
+      ? restaurant.cuisineTypes.filter(Boolean).slice(0, 2).join(' • ')
+      : restaurant?.cuisineType || null;
+    const ratingValue =
+      typeof restaurant?.ratingAverage === 'number'
+        ? restaurant.ratingAverage
+        : typeof restaurant?.averageRating === 'number'
+          ? restaurant.averageRating
+          : null;
+    const ratingText =
+      typeof ratingValue === 'number' && ratingValue > 0 ? ratingValue.toFixed(1) : null;
+    const priceText =
+      typeof restaurant?.averagePrice === 'number'
+        ? formatCurrency(restaurant.averagePrice)
+        : restaurant?.priceRange || null;
+    const summaryText =
+      restaurant?.description ||
+      (Array.isArray(restaurant?.reasons) ? restaurant.reasons.join(' • ') : null);
+
+    return (
+      <Pressable
+        key={key}
+        style={styles.resultCard}
+        onPress={() => handleOpenRestaurant(restaurantId)}
+      >
+        {imageUri ? (
+          <Image source={{ uri: imageUri }} style={styles.resultImage} resizeMode="cover" />
+        ) : (
+          <View style={[styles.resultImage, styles.resultImageFallback]}>
+            <FontAwesome name="cutlery" size={18} color={T.color.primary} />
+          </View>
+        )}
+
+        <View style={styles.resultBody}>
+          <View style={styles.resultHeaderRow}>
+            <Text style={styles.resultTitle} numberOfLines={1}>
+              {restaurant?.name || 'Nha hang'}
+            </Text>
+            {ratingText ? (
+              <View style={styles.resultRating}>
+                <FontAwesome name="star" size={11} color={T.color.primary} />
+                <Text style={styles.resultRatingText}>{ratingText}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {cuisineText ? (
+            <Text style={styles.resultMetaText} numberOfLines={1}>
+              {cuisineText}
+            </Text>
+          ) : null}
+
+          {summaryText ? (
+            <Text style={styles.resultDescription} numberOfLines={2}>
+              {summaryText}
+            </Text>
+          ) : null}
+
+          <View style={styles.resultFooterRow}>
+            {priceText ? <Text style={styles.resultPrice}>{priceText}</Text> : <View />}
+            <Text style={styles.resultLinkText}>Xem chi tiet</Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  };
+
+  const renderResultBlock = (result: AIResult, messageId: string, index: number) => {
+    const key = `${messageId}-result-${index}`;
+
+    if (result?.type === 'restaurant_list') {
+      const restaurants = Array.isArray(result?.payload?.restaurants)
+        ? result.payload.restaurants
+        : [];
+
+      if (restaurants.length === 0) {
+        return (
+          <View key={key} style={styles.emptyResultBox}>
+            <Text style={styles.emptyResultText}>Khong tim thay nha hang phu hop.</Text>
+          </View>
+        );
+      }
+
+      return (
+        <View key={key} style={styles.resultGroup}>
+          {restaurants.map((restaurant: any, itemIndex: number) =>
+            renderRestaurantCard(restaurant, `${key}-restaurant-${itemIndex}`))}
+        </View>
+      );
+    }
+
+    if (result?.type === 'personalized_recommendations') {
+      const items = Array.isArray(result?.payload?.items) ? result.payload.items : [];
+
+      return (
+        <View key={key} style={styles.resultGroup}>
+          <View style={styles.resultInfoBox}>
+            <Text style={styles.resultInfoTitle}>Goi y cho ban</Text>
+            <Text style={styles.resultInfoText}>
+              {result?.payload?.message || 'Day la mot vai lua chon phu hop tu BookEat.'}
+            </Text>
+          </View>
+
+          {items.length > 0 ? (
+            items.map((item: any, itemIndex: number) =>
+              renderRestaurantCard(item, `${key}-recommendation-${itemIndex}`))
+          ) : (
+            <View style={styles.emptyResultBox}>
+              <Text style={styles.emptyResultText}>
+                Chua tim thay lua chon phu hop ngay luc nay. Thu them khu vuc, mon an hoac muc gia cu the hon.
+              </Text>
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <KeyboardAvoidingView
@@ -565,6 +712,13 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                         </Text>
                       </View>
                     )}
+                  </View>
+                )}
+
+                {item.results.length > 0 && (
+                  <View style={styles.resultsStack}>
+                    {item.results.map((result, index) =>
+                      renderResultBlock(result, item.id, index))}
                   </View>
                 )}
               </View>
@@ -790,6 +944,117 @@ const styles = StyleSheet.create({
     color: T.color.error,
     fontSize: 12,
     lineHeight: 18,
+  },
+  resultsStack: {
+    width: '100%',
+    gap: T.space.sm,
+    marginTop: T.space.sm,
+  },
+  resultGroup: {
+    width: '100%',
+    gap: T.space.sm,
+  },
+  resultInfoBox: {
+    borderRadius: T.radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 150, 83, 0.18)',
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+    padding: T.space.md,
+  },
+  resultInfoTitle: {
+    color: T.color.primary,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  resultInfoText: {
+    color: T.color.text2,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  resultCard: {
+    width: '100%',
+    backgroundColor: T.color.card,
+    borderRadius: T.radius.xl,
+    borderWidth: 1,
+    borderColor: T.color.border,
+    overflow: 'hidden',
+  },
+  resultImage: {
+    width: '100%',
+    height: 132,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  resultImageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultBody: {
+    padding: T.space.md,
+  },
+  resultHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: T.space.sm,
+  },
+  resultTitle: {
+    flex: 1,
+    color: T.color.text1,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  resultRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  resultRatingText: {
+    color: T.color.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  resultMetaText: {
+    color: T.color.text3,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  resultDescription: {
+    color: T.color.text2,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 8,
+  },
+  resultFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  resultPrice: {
+    color: T.color.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  resultLinkText: {
+    color: T.color.text1,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  emptyResultBox: {
+    width: '100%',
+    borderRadius: T.radius.lg,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    padding: T.space.md,
+  },
+  emptyResultText: {
+    color: T.color.text3,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
   },
   previewCard: {
     width: 280,
