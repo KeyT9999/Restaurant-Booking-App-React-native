@@ -11,6 +11,8 @@ import { useToast } from '@/src/components/ui/Toast';
 import { formatCurrency, formatDate } from '@/src/utils/format';
 import { FontAwesome } from '@expo/vector-icons';
 import { Booking } from '@/src/types/booking.types';
+import * as WebBrowser from 'expo-web-browser';
+import { paymentApi } from '@/src/api/payment.api';
 
 export default function BookingDetailScreen() {
   const router = useRouter();
@@ -19,6 +21,38 @@ export default function BookingDetailScreen() {
 
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [paying, setPaying] = useState(false);
+
+  const handlePayment = async () => {
+    if (!booking) return;
+    setPaying(true);
+    try {
+      const payRes = await paymentApi.createPayment({
+        targetType: 'booking',
+        targetId: booking.id,
+      });
+
+      if (payRes.success && payRes.data) {
+        const payment = payRes.data;
+        if (payment.checkoutUrl) {
+          // Open web browser for PayOS payment
+          await WebBrowser.openBrowserAsync(payment.checkoutUrl);
+          // Reload booking detail when returning
+          loadBookingDetail();
+          showToast('Đang cập nhật trạng thái thanh toán...', 'info');
+        } else {
+          showToast('Không tìm thấy liên kết thanh toán', 'error');
+        }
+      } else {
+        showToast('Yêu cầu thanh toán thất bại', 'error');
+      }
+    } catch (err: any) {
+      console.warn('Lỗi thanh toán:', err);
+      showToast(err?.message || 'Không thể kết nối đến cổng thanh toán', 'error');
+    } finally {
+      setPaying(false);
+    }
+  };
 
   const loadBookingDetail = useCallback(async () => {
     if (!id) return;
@@ -254,6 +288,15 @@ export default function BookingDetailScreen() {
 
         {/* ─── Actions Button ─── */}
         <View style={styles.actionContainer}>
+          {!booking.depositPaid && booking.finalAmount > 0 && ['pending', 'confirmed'].includes(booking.status) && (
+            <Button
+              label="Thanh toán đặt cọc ngay"
+              onPress={handlePayment}
+              variant={paying ? 'loading' : 'primary'}
+              style={styles.payBtn}
+            />
+          )}
+
           {canCancel() && (
             <Button
               label="Hủy đặt bàn"
@@ -538,6 +581,10 @@ const styles = StyleSheet.create({
   actionContainer: {
     paddingHorizontal: T.space.lg,
     marginTop: T.space.xl,
+  },
+  payBtn: {
+    width: '100%',
+    marginBottom: T.space.md,
   },
   cancelBtn: {
     width: '100%',

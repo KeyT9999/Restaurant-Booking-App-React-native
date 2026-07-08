@@ -15,6 +15,9 @@ import { useToast } from '@/src/components/ui/Toast';
 import { RestaurantTable } from '@/src/types/booking.types';
 import { formatCurrency } from '@/src/utils/format';
 import { FontAwesome } from '@expo/vector-icons';
+import { PreOrderSelector } from '@/src/components/booking/PreOrderSelector';
+import { VoucherSelector } from '@/src/components/booking/VoucherSelector';
+import { MenuItem } from '@/src/types/restaurant.types';
 
 export default function CreateBooking() {
   const router = useRouter();
@@ -29,6 +32,13 @@ export default function CreateBooking() {
   const [selectedGuests, setSelectedGuests] = useState(2);
   const [selectedTime, setSelectedTime] = useState('');
   const [selectedTables, setSelectedTables] = useState<string[]>([]); // tableNumbers
+
+  // Pre-order and Voucher states
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [preOrders, setPreOrders] = useState<{ [itemId: string]: number }>({});
+  const [loadingMenu, setLoadingMenu] = useState(true);
+  const [appliedVoucher, setAppliedVoucher] = useState<any>(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
 
   // Availability State
   const [checking, setChecking] = useState(false);
@@ -79,6 +89,82 @@ export default function CreateBooking() {
   useEffect(() => {
     loadRestaurantDetails();
   }, [loadRestaurantDetails]);
+
+  // Fetch restaurant menu for pre-ordering
+  useEffect(() => {
+    async function fetchMenu() {
+      if (!restaurantId) return;
+      try {
+        const res = await restaurantApi.getMenu(restaurantId);
+        if (res.success && res.data) {
+          setMenuItems(res.data.menuItems || []);
+        }
+      } catch (error) {
+        console.warn('Lỗi tải thực đơn đặt trước:', error);
+      } finally {
+        setLoadingMenu(false);
+      }
+    }
+    fetchMenu();
+  }, [restaurantId]);
+
+  // Adjust pre-order quantity
+  const handlePreOrderChange = (itemId: string, diff: number) => {
+    setPreOrders((prev) => {
+      const current = prev[itemId] || 0;
+      const nextVal = Math.max(0, current + diff);
+      const nextPreOrders = { ...prev };
+      if (nextVal === 0) {
+        delete nextPreOrders[itemId];
+      } else {
+        nextPreOrders[itemId] = nextVal;
+      }
+      return nextPreOrders;
+    });
+  };
+
+  // Calculate pre-order items total
+  const preOrderTotal = () => {
+    let total = 0;
+    Object.keys(preOrders).forEach((itemId) => {
+      const item = menuItems.find((m) => m.id === itemId);
+      if (item) {
+        total += item.price * preOrders[itemId];
+      }
+    });
+    return total;
+  };
+
+  // Total order amount for voucher eligibility (which is table deposit)
+  const totalOrderAmount = () => {
+    return totalDepositAmount();
+  };
+
+  // Final payable deposit amount after discount
+  const finalPayableAmount = () => {
+    return Math.max(0, totalDepositAmount() - discountAmount);
+  };
+
+  // Automatically validate/revoke applied voucher if order amount changes
+  useEffect(() => {
+    if (appliedVoucher) {
+      const orderAmount = totalOrderAmount();
+      if (orderAmount < (appliedVoucher.minOrderAmount || 0)) {
+        setAppliedVoucher(null);
+        setDiscountAmount(0);
+        showToast('Voucher đã bị gỡ bỏ vì tiền cọc bàn chưa đạt mức tối thiểu.', 'info');
+      } else {
+        // Re-calculate discount if it is a percentage discount
+        if (appliedVoucher.discountType === 'percentage') {
+          let disc = Math.round((orderAmount * appliedVoucher.discountValue) / 100);
+          if (appliedVoucher.maxDiscountAmount && disc > appliedVoucher.maxDiscountAmount) {
+            disc = appliedVoucher.maxDiscountAmount;
+          }
+          setDiscountAmount(disc);
+        }
+      }
+    }
+  }, [selectedTables, appliedVoucher]);
 
   // Check table availability on date, time, or guest count changes
   const handleCheckAvailability = useCallback(async () => {
@@ -139,7 +225,7 @@ export default function CreateBooking() {
     return zones;
   };
 
-  // Calculate Total Deposit required for the selected tables
+  // Calculate Total Deposit required for the selected tables and pre-order food items
   const totalDepositAmount = () => {
     let deposit = 0;
     availableTables.forEach((table) => {
@@ -147,6 +233,9 @@ export default function CreateBooking() {
         deposit += table.depositAmount || 0;
       }
     });
+    // Cộng thêm 10% tiền món ăn đặt trước
+    const foodTotal = preOrderTotal();
+    deposit += Math.round(0.1 * foodTotal);
     return deposit;
   };
 
@@ -187,6 +276,9 @@ export default function CreateBooking() {
         numberOfGuests: selectedGuests,
         tableNumbers: selectedTables.join(','),
         depositAmount: totalDepositAmount(),
+        preOrders: JSON.stringify(preOrders),
+        voucherCode: appliedVoucher ? appliedVoucher.code : '',
+        discountAmount: discountAmount,
       },
     });
   };
@@ -346,13 +438,56 @@ export default function CreateBooking() {
             </View>
           )}
         </View>
+
+        {/* ─── Food Pre-order Section ─── */}
+        <SectionHeader title="Gọi trước món ăn (tiết kiệm thời gian)" style={styles.sectionHeader} />
+        <PreOrderSelector
+          menuItems={menuItems}
+          preOrders={preOrders}
+          onPreOrderChange={handlePreOrderChange}
+          loading={loadingMenu}
+        />
+
+        {/* ─── Voucher Promo Code ─── */}
+        {selectedTables.length > 0 && (
+          <>
+            <SectionHeader title="Mã giảm giá đặt bàn" style={styles.sectionHeader} />
+            <VoucherSelector
+              restaurantId={restaurantId}
+              orderAmount={totalOrderAmount()}
+              appliedVoucher={appliedVoucher}
+              onApplyVoucher={(v, discount) => {
+                setAppliedVoucher(v);
+                setDiscountAmount(discount);
+              }}
+              onRemoveVoucher={() => {
+                setAppliedVoucher(null);
+                setDiscountAmount(0);
+              }}
+            />
+          </>
+        )}
       </ScrollView>
 
       {/* ─── Sticky Bottom Bar ─── */}
       <View style={styles.bottomBar}>
         <View style={styles.summaryCol}>
-          <Text style={styles.summaryLabel}>Đặt cọc bàn ({selectedTables.length} bàn):</Text>
-          <Text style={styles.summaryValue}>{formatCurrency(totalDepositAmount())}</Text>
+          <Text style={styles.summaryLabel}>
+            Đặt cọc bàn ({selectedTables.length} bàn)
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+            <Text style={styles.summaryValue}>{formatCurrency(finalPayableAmount())}</Text>
+            {discountAmount > 0 && (
+              <Text style={styles.discountBadgeText}>
+                (-{formatCurrency(discountAmount)})
+              </Text>
+            )}
+          </View>
+          {preOrderTotal() > 0 && (
+            <Text style={styles.preOrderHint}>
+              + {formatCurrency(preOrderTotal())} món đặt trước (trả tại quán)
+            </Text>
+          )}
         </View>
         <Button
           label="Tiếp tục"
@@ -668,5 +803,16 @@ const styles = StyleSheet.create({
   },
   continueBtn: {
     flex: 0.45,
+  },
+  discountBadgeText: {
+    color: T.color.success,
+    fontSize: 11,
+    fontWeight: '700',
+    marginLeft: 6,
+  },
+  preOrderHint: {
+    color: T.color.text3,
+    fontSize: 10,
+    marginTop: 2,
   },
 });
