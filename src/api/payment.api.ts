@@ -2,7 +2,7 @@ import { apiClient } from './client';
 
 export const paymentApi = {
   createPayment: async (payload: { targetType: 'booking' | 'subscription'; targetId: string; planCode?: string }): Promise<any> => {
-    const response = await apiClient.post('/payments', payload);
+    const response = await apiClient.post('/payments/create', payload);
     return response.data;
   },
 

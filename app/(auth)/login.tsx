@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/auth/useAuth';
@@ -9,9 +9,14 @@ import { Button } from '@/src/components/ui/Button';
 import { FontAwesome } from '@expo/vector-icons';
 import { validateEmail } from '@/src/utils/validation';
 import { useToast } from '@/src/components/ui/Toast';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function Login() {
-  const { login, register } = useAuth();
+  const { login, register, loginWithToken } = useAuth();
   const router = useRouter();
   const { showToast } = useToast();
   const [email, setEmail] = useState('');
@@ -19,9 +24,64 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+
+  // Setup client-side Google auth provider session
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    webClientId: googleClientId,
+    iosClientId: googleClientId,
+    androidClientId: googleClientId,
+    redirectUri: 'https://auth.expo.io/@anonymous/BookEat_ReactNative',
+  });
+
+  useEffect(() => {
+    if (request) {
+      console.log('--- EXPO ACTUAL REDIRECT URI FOR GOOGLE CONSOLE ---');
+      console.log(request.redirectUri);
+      console.log('----------------------------------------------------');
+    }
+  }, [request]);
+
+  useEffect(() => {
+    if (response?.type === 'success' && response.authentication?.accessToken) {
+      handleVerifyGoogleToken(response.authentication.accessToken);
+    } else if (response?.type === 'error') {
+      showToast('Đăng nhập Google thất bại hoặc bị hủy', 'error');
+    }
+  }, [response]);
+
+  const handleVerifyGoogleToken = async (accessToken: string) => {
+    setErrorMsg('');
+    setLoading(true);
+    try {
+      const { authApi } = require('@/src/api/auth.api');
+      const res = await authApi.loginGoogleMobile(accessToken, 'access');
+      if (res.success && res.data?.token) {
+        const loginRes = await loginWithToken(res.data.token);
+        if (loginRes.success) {
+          showToast('Đăng nhập bằng Google thành công! 🎉', 'success');
+          router.replace('/(tabs)');
+        } else {
+          setErrorMsg(loginRes.message || 'Không thể thiết lập phiên đăng nhập');
+        }
+      } else {
+        setErrorMsg(res.message || 'Mã xác thực từ Google không hợp lệ');
+      }
+    } catch (err: any) {
+      console.warn('Lỗi đăng nhập Google Mobile:', err);
+      setErrorMsg(err.response?.data?.message || 'Không thể xác thực với máy chủ');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = async () => {
-    if (!email || !password) {
+    if (!email.trim() || !password.trim()) {
       setErrorMsg('Vui lòng nhập đầy đủ thông tin');
+      return;
+    }
+    if (!validateEmail(email)) {
+      setErrorMsg('Email không hợp lệ');
       return;
     }
     setErrorMsg('');
@@ -35,63 +95,8 @@ export default function Login() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setErrorMsg('');
-    setLoading(true);
-
-    Alert.alert(
-      'Đăng nhập Google',
-      'Chọn phương thức đăng nhập bằng Google:',
-      [
-        {
-          text: 'Google Demo (Khuyên dùng)',
-          onPress: async () => {
-            try {
-              // Simulate Google authentication by auto-registering / logging in a Google test user.
-              const emailDemo = 'google_diner_test@gmail.com';
-              const nameDemo = 'Google Diner Test';
-              const phoneDemo = '0988777666';
-              const passDemo = 'GoogleDinerTestPassword123';
-
-              await register(nameDemo, emailDemo, phoneDemo, passDemo);
-              const res = await login(emailDemo, passDemo);
-              if (res.success) {
-                showToast('Đăng nhập bằng Google Demo thành công! 🎉', 'success');
-                router.replace('/(tabs)');
-              } else {
-                setErrorMsg(res.message);
-              }
-            } catch (err) {
-              setErrorMsg('Đăng nhập Google Demo thất bại');
-            } finally {
-              setLoading(false);
-            }
-          }
-        },
-        {
-          text: 'OAuth Web Flow (Cần cấu hình env BE)',
-          onPress: async () => {
-            try {
-              const { getCustomBaseURL } = require('@/src/api/client');
-              const baseUrl = await getCustomBaseURL();
-              const googleAuthUrl = `${baseUrl}/auth/google`;
-
-              const { openBrowserAsync } = require('expo-web-browser');
-              await openBrowserAsync(googleAuthUrl);
-            } catch (err) {
-              setErrorMsg('Không thể mở liên kết Google OAuth');
-            } finally {
-              setLoading(false);
-            }
-          }
-        },
-        {
-          text: 'Hủy',
-          style: 'cancel',
-          onPress: () => setLoading(false)
-        }
-      ]
-    );
+  const handleGoogleLogin = () => {
+    promptAsync();
   };
 
   return (

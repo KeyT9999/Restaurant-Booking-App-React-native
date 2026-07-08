@@ -169,7 +169,10 @@ export default function VouchersWalletScreen() {
 
               const restInfo = v.restaurantId || {};
               return (
-                <View style={styles.voucherCard}>
+                <Pressable
+                  style={styles.voucherCard}
+                  onPress={() => router.push(`/vouchers/${v.id || v._id || item._id || ''}` as any)}
+                >
                   <View style={styles.cardLeft}>
                     <FontAwesome name="ticket" size={24} color={T.color.primary} />
                   </View>
@@ -185,7 +188,7 @@ export default function VouchersWalletScreen() {
                       <Text style={styles.savedText}>Đã Lưu</Text>
                     </View>
                   </View>
-                </View>
+                </Pressable>
               );
             }}
           />
@@ -217,15 +220,23 @@ export default function VouchersWalletScreen() {
 
             return (
               <View style={styles.voucherCard}>
-                <View style={styles.cardLeft}>
-                  <FontAwesome name="gift" size={24} color={T.color.primary} />
-                </View>
-                <View style={styles.cardContent}>
-                  <Text style={styles.codeText}>{item.code}</Text>
-                  <Text style={styles.titleText}>{item.title || discountText}</Text>
-                  <Text style={styles.descText} numberOfLines={1}>{item.description}</Text>
-                  <Text style={styles.timeText}>HSD: {formatDate(item.endDate)}</Text>
-                </View>
+                <Pressable
+                  onPress={() => router.push(`/vouchers/${itemRealId}` as any)}
+                  style={{ flexDirection: 'row', flex: 1, alignItems: 'center' }}
+                >
+                  <View style={styles.cardLeft}>
+                    <FontAwesome name="gift" size={24} color={T.color.primary} />
+                  </View>
+                  <View style={styles.cardContent}>
+                    <Text style={styles.codeText}>{item.code}</Text>
+                    <Text style={styles.titleText}>{item.title || discountText}</Text>
+                    <Text style={styles.descText} numberOfLines={1}>{item.description}</Text>
+                    {item.restaurantId?.name && (
+                      <Text style={styles.restText}>Chỉ tại: {item.restaurantId.name}</Text>
+                    )}
+                    <Text style={styles.timeText}>HSD: {formatDate(item.endDate)}</Text>
+                  </View>
+                </Pressable>
                 <View style={styles.cardRight}>
                   {isSaved ? (
                     <View style={styles.savedBadge}>

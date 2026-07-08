@@ -41,4 +41,9 @@ export const authApi = {
     const response = await apiClient.post('/auth/logout');
     return response.data;
   },
+
+  loginGoogleMobile: async (token: string, tokenType: 'access' | 'id' = 'access'): Promise<any> => {
+    const response = await apiClient.post('/auth/google/mobile', { token, tokenType });
+    return response.data;
+  },
 };

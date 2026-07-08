@@ -6,6 +6,11 @@ export const voucherApi = {
     return response.data;
   },
 
+  getById: async (id: string): Promise<any> => {
+    const response = await apiClient.get(`/vouchers/${id}`);
+    return response.data;
+  },
+
   saveVoucher: async (voucherId: string): Promise<any> => {
     const response = await apiClient.post('/vouchers/save', { voucherId });
     return response.data;

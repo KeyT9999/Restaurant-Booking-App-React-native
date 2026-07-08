@@ -143,6 +143,21 @@ export default function HomeScreen() {
           <Text style={styles.searchText}>Tìm nhà hàng, món ăn, vị trí...</Text>
         </Pressable>
 
+        {/* ─── Recommendation Bento Banner ─── */}
+        <Pressable onPress={() => router.push('/recommendation')} style={styles.recommendationBanner}>
+          <View style={styles.recBannerLeft}>
+            <View style={styles.recSparkleRow}>
+              <FontAwesome name="magic" size={12} color={T.color.primary} />
+              <Text style={styles.recSparkleText}>GỢI Ý CÁ NHÂN HÓA</Text>
+            </View>
+            <Text style={styles.recBannerTitle}>Hôm nay ăn gì?</Text>
+            <Text style={styles.recBannerSub}>Nhận đề xuất quán ngon phù hợp với sở thích & vị trí hiện tại của bạn.</Text>
+          </View>
+          <View style={styles.recBannerRight}>
+            <FontAwesome name="chevron-right" size={14} color={T.color.primary} />
+          </View>
+        </Pressable>
+
         {/* ─── Category Cuisine Chips ─── */}
         <View style={styles.cuisinesWrapper}>
           {loading ? (
@@ -340,6 +355,52 @@ const styles = StyleSheet.create({
   searchText: {
     color: T.color.placeholder,
     fontSize: 14,
+  },
+  recommendationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 150, 83, 0.25)',
+    borderRadius: T.radius.lg,
+    marginHorizontal: T.space.lg,
+    marginTop: T.space.md,
+    padding: T.space.md,
+    backgroundColor: 'rgba(212, 150, 83, 0.03)',
+  },
+  recBannerLeft: {
+    flex: 0.9,
+  },
+  recSparkleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  recSparkleText: {
+    color: T.color.primary,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  recBannerTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  recBannerSub: {
+    color: T.color.text3,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  recBannerRight: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   cuisinesWrapper: {
     marginVertical: T.space.lg,

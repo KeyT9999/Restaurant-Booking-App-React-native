@@ -31,8 +31,8 @@ export default function VerifyEmail() {
       const res = await authApi.verifyEmail(otpToken.trim());
       setLoading(false);
       if (res.success) {
-        showToast('Xác thực email thành công! Đăng nhập ngay.', 'success');
-        router.replace('/(auth)/login');
+        showToast('Xác thực email thành công! 🎉', 'success');
+        router.replace('/(auth)/register-success');
       } else {
         setErrorMsg(res.message || 'Xác thực thất bại');
       }

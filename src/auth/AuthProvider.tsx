@@ -9,6 +9,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (emailOrUsername: string, password: string) => Promise<{ success: boolean; message: string }>;
+  loginWithToken: (token: string) => Promise<{ success: boolean; message: string }>;
   register: (fullName: string, email: string, phoneNumber: string, password: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -132,6 +133,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const loginWithToken = async (newToken: string) => {
+    try {
+      setToken(newToken);
+      await saveSecureToken(newToken);
+      // Fetch user profile
+      const response = await apiClient.get('/auth/profile', {
+        headers: {
+          Authorization: `Bearer ${newToken}`,
+        },
+      });
+      if (response.data.success && response.data.user) {
+        setUser(response.data.user);
+        return { success: true, message: 'Đăng nhập thành công' };
+      }
+      return { success: false, message: 'Không thể lấy thông tin tài khoản' };
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Lỗi xác thực OAuth';
+      return { success: false, message };
+    }
+  };
+
   const refreshProfile = async () => {
     try {
       if (!token) return;
@@ -156,6 +178,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isLoading,
         isAuthenticated: !!token && !!user,
         login,
+        loginWithToken,
         register,
         logout,
         refreshProfile,

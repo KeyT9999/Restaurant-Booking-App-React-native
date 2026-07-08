@@ -32,6 +32,9 @@ export default function BookingSummary() {
     numberOfGuests: string;
     tableNumbers: string;
     depositAmount: string;
+    preOrders?: string;
+    voucherCode?: string;
+    discountAmount?: string;
   }>();
 
   const restaurantId = params.restaurantId || '';
@@ -51,13 +54,21 @@ export default function BookingSummary() {
 
   // Pre-order States
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [preOrders, setPreOrders] = useState<{ [itemId: string]: number }>({});
+  const [preOrders, setPreOrders] = useState<{ [itemId: string]: number }>(() => {
+    try {
+      return params.preOrders ? JSON.parse(params.preOrders) : {};
+    } catch (_) {
+      return {};
+    }
+  });
   const [loadingMenu, setLoadingMenu] = useState(true);
 
   // Voucher States
-  const [voucherCode, setVoucherCode] = useState('');
-  const [appliedVoucher, setAppliedVoucher] = useState<any>(null);
-  const [discountAmount, setDiscountAmount] = useState(0);
+  const [voucherCode, setVoucherCode] = useState(params.voucherCode || '');
+  const [appliedVoucher, setAppliedVoucher] = useState<any>(
+    params.voucherCode ? { code: params.voucherCode } : null
+  );
+  const [discountAmount, setDiscountAmount] = useState(parseFloat(params.discountAmount || '0'));
   const [validatingVoucher, setValidatingVoucher] = useState(false);
 
   // Booking process state
@@ -147,6 +158,25 @@ export default function BookingSummary() {
   };
 
   const finalAmount = Math.max(0, baseDepositAmount - discountAmount);
+
+  const getPreOrdersList = () => {
+    const list: any[] = [];
+    Object.keys(preOrders).forEach((itemId) => {
+      const item = menuItems.find((m) => m.id === itemId);
+      if (item && preOrders[itemId] > 0) {
+        list.push({
+          item,
+          quantity: preOrders[itemId]
+        });
+      }
+    });
+    return list;
+  };
+
+  const preOrdersList = getPreOrdersList();
+  const preOrderTotalAmount = preOrdersList.reduce((sum, current) => sum + current.item.price * current.quantity, 0);
+  const foodDepositAmount = Math.round(0.1 * preOrderTotalAmount);
+  const tableDepositAmount = Math.max(0, baseDepositAmount - foodDepositAmount);
 
   // Submit and open payment gateway
   const handleSubmitBooking = async () => {
@@ -317,66 +347,54 @@ export default function BookingSummary() {
           ))}
         </View>
 
-        {/* ─── Food Pre-order Section ─── */}
-        <SectionHeader title="Gọi trước món ăn (tiết kiệm thời gian)" style={styles.sectionHeader} />
-        <View style={styles.preOrderWrapper}>
+        {/* ─── Food Pre-order Section (Static) ─── */}
+        <SectionHeader title="Món ăn đã đặt trước" style={styles.sectionHeader} />
+        <View style={styles.staticBox}>
           {loadingMenu ? (
-            <ActivityIndicator color={T.color.primary} style={{ marginVertical: 20 }} />
-          ) : menuItems.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.foodList}>
-              {menuItems.map((item) => {
-                const qty = preOrders[item.id] || 0;
-                return (
-                  <View key={item.id} style={styles.foodCard}>
-                    <Image
-                      source={{ uri: item.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=150' }}
-                      style={styles.foodImg}
-                    />
-                    <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.foodPrice}>{formatCurrency(item.price)}</Text>
-                    
-                    {qty > 0 ? (
-                      <View style={styles.qtyStepper}>
-                        <Pressable onPress={() => handlePreOrderChange(item.id, -1)} style={styles.qtyBtn}>
-                          <FontAwesome name="minus" size={10} color="#FFFFFF" />
-                        </Pressable>
-                        <Text style={styles.qtyVal}>{qty}</Text>
-                        <Pressable onPress={() => handlePreOrderChange(item.id, 1)} style={styles.qtyBtn}>
-                          <FontAwesome name="plus" size={10} color="#FFFFFF" />
-                        </Pressable>
-                      </View>
-                    ) : (
-                      <Pressable onPress={() => handlePreOrderChange(item.id, 1)} style={styles.addFoodBtn}>
-                        <Text style={styles.addFoodText}>Thêm món</Text>
-                      </Pressable>
-                    )}
+            <ActivityIndicator color={T.color.primary} style={{ marginVertical: 10 }} />
+          ) : preOrdersList.length > 0 ? (
+            <View style={styles.preOrderStaticList}>
+              {preOrdersList.map(({ item, quantity }) => (
+                <View key={item.id} style={styles.preOrderStaticRow}>
+                  <View style={styles.preOrderStaticLeft}>
+                    <Text style={styles.preOrderStaticName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.preOrderStaticQty}>x{quantity}</Text>
                   </View>
-                );
-              })}
-            </ScrollView>
+                  <Text style={styles.preOrderStaticPrice}>{formatCurrency(item.price * quantity)}</Text>
+                </View>
+              ))}
+              <View style={styles.staticDivider} />
+              <View style={styles.preOrderStaticTotalRow}>
+                <Text style={styles.preOrderStaticTotalLabel}>Tổng tiền món ăn (thanh toán tại nhà hàng):</Text>
+                <Text style={styles.preOrderStaticTotalVal}>{formatCurrency(preOrderTotalAmount)}</Text>
+              </View>
+            </View>
           ) : (
-            <Text style={styles.noFoodText}>Nhà hàng chưa có món ăn trực tuyến</Text>
+            <Text style={styles.staticEmptyText}>Không có món ăn đặt trước (trả sau tại nhà hàng)</Text>
           )}
         </View>
 
-        {/* ─── Voucher Promo Code ─── */}
-        <SectionHeader title="Mã giảm giá đặt bàn" style={styles.sectionHeader} />
-        <View style={styles.voucherBox}>
-          <TextInput
-            style={styles.voucherInput}
-            placeholder="Nhập mã ưu đãi (ví dụ: BOOKEAT20)"
-            placeholderTextColor={T.color.placeholder}
-            value={voucherCode}
-            onChangeText={setVoucherCode}
-            autoCapitalize="characters"
-          />
-          <Pressable onPress={handleApplyVoucher} style={styles.applyBtn} disabled={validatingVoucher}>
-            {validatingVoucher ? (
-              <ActivityIndicator size="small" color="#0C0F16" />
-            ) : (
-              <Text style={styles.applyBtnText}>Áp dụng</Text>
-            )}
-          </Pressable>
+        {/* ─── Voucher Applied (Static) ─── */}
+        <SectionHeader title="Ưu đãi đặt bàn" style={styles.sectionHeader} />
+        <View style={styles.staticBox}>
+          {appliedVoucher ? (
+            <View style={styles.voucherStaticCard}>
+              <View style={styles.voucherStaticLeft}>
+                <FontAwesome name="tag" size={16} color={T.color.primary} />
+                <View style={styles.voucherStaticInfo}>
+                  <Text style={styles.voucherStaticCode}>{appliedVoucher.code}</Text>
+                  <Text style={styles.voucherStaticTitle} numberOfLines={1}>
+                    Giảm giá cọc bàn ({formatCurrency(discountAmount)})
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.voucherStaticBadge}>
+                <Text style={styles.voucherStaticBadgeText}>Đã áp dụng</Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.staticEmptyText}>Không áp dụng mã giảm giá</Text>
+          )}
         </View>
 
         {/* ─── Cost Breakdown ─── */}
@@ -384,8 +402,15 @@ export default function BookingSummary() {
         <View style={styles.breakdownBox}>
           <View style={styles.breakdownRow}>
             <Text style={styles.bdLabel}>Tiền cọc bàn</Text>
-            <Text style={styles.bdValue}>{formatCurrency(baseDepositAmount)}</Text>
+            <Text style={styles.bdValue}>{formatCurrency(tableDepositAmount)}</Text>
           </View>
+
+          {foodDepositAmount > 0 && (
+            <View style={styles.breakdownRow}>
+              <Text style={styles.bdLabel}>Tiền cọc món ăn (10%)</Text>
+              <Text style={styles.bdValue}>{formatCurrency(foodDepositAmount)}</Text>
+            </View>
+          )}
           
           {discountAmount > 0 && (
             <View style={styles.breakdownRow}>
@@ -394,12 +419,25 @@ export default function BookingSummary() {
             </View>
           )}
 
+          {preOrderTotalAmount > 0 && (
+            <View style={styles.breakdownRow}>
+              <Text style={styles.bdLabel}>Tổng giá trị món ăn</Text>
+              <Text style={styles.bdValue}>{formatCurrency(preOrderTotalAmount)}</Text>
+            </View>
+          )}
+
           <View style={styles.bdDivider} />
           
           <View style={styles.breakdownRow}>
-            <Text style={[styles.bdLabel, { fontWeight: '700', color: '#FFFFFF' }]}>Cần đặt cọc</Text>
+            <Text style={[styles.bdLabel, { fontWeight: '700', color: '#FFFFFF' }]}>Cần thanh toán cọc bây giờ</Text>
             <Text style={styles.finalTotal}>{formatCurrency(finalAmount)}</Text>
           </View>
+          
+          {preOrderTotalAmount > 0 && (
+            <Text style={styles.breakdownNote}>
+              * Lưu ý: Bạn cần thanh toán cọc bàn và cọc món ăn tổng cộng {formatCurrency(finalAmount)} bây giờ. Tiền món ăn còn lại ({formatCurrency(preOrderTotalAmount - foodDepositAmount)}) sẽ được thanh toán trực tiếp tại nhà hàng khi bạn đến dùng bữa.
+            </Text>
+          )}
         </View>
       </ScrollView>
 
@@ -679,5 +717,114 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     flex: 0.5,
+  },
+  staticBox: {
+    backgroundColor: T.color.card,
+    borderRadius: T.radius.lg,
+    borderWidth: 1,
+    borderColor: T.color.border,
+    padding: T.space.lg,
+    marginHorizontal: T.space.lg,
+    marginBottom: T.space.md,
+  },
+  staticEmptyText: {
+    color: T.color.text3,
+    fontSize: 13,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  preOrderStaticList: {
+    gap: 8,
+  },
+  preOrderStaticRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  preOrderStaticLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  preOrderStaticName: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  preOrderStaticQty: {
+    color: T.color.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  preOrderStaticPrice: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  staticDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    marginVertical: 8,
+  },
+  preOrderStaticTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  preOrderStaticTotalLabel: {
+    color: T.color.text3,
+    fontSize: 11,
+    flex: 0.7,
+  },
+  preOrderStaticTotalVal: {
+    color: T.color.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  voucherStaticCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  voucherStaticLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  voucherStaticInfo: {
+    marginLeft: T.space.md,
+    flex: 1,
+  },
+  voucherStaticCode: {
+    color: T.color.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  voucherStaticTitle: {
+    color: T.color.text2,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  voucherStaticBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: T.radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  voucherStaticBadgeText: {
+    color: T.color.success,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  breakdownNote: {
+    color: T.color.text3,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 12,
+    fontStyle: 'italic',
   },
 });
