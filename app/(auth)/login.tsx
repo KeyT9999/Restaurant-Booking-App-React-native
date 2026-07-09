@@ -60,7 +60,11 @@ export default function Login() {
         const loginRes = await loginWithToken(res.data.token);
         if (loginRes.success) {
           showToast('Đăng nhập bằng Google thành công! 🎉', 'success');
-          router.replace('/(tabs)');
+          if ((loginRes as any).user?.role === 'restaurant_owner') {
+            router.replace('/(owner-tabs)' as any);
+          } else {
+            router.replace('/(tabs)');
+          }
         } else {
           setErrorMsg(loginRes.message || 'Không thể thiết lập phiên đăng nhập');
         }
@@ -89,7 +93,11 @@ export default function Login() {
     const res = await login(email, password);
     setLoading(false);
     if (res.success) {
-      router.replace('/(tabs)');
+      if ((res as any).user?.role === 'restaurant_owner') {
+        router.replace('/(owner-tabs)' as any);
+      } else {
+        router.replace('/(tabs)');
+      }
     } else {
       setErrorMsg(res.message);
     }

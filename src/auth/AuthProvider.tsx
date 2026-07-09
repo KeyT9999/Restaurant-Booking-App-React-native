@@ -86,7 +86,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setToken(access_token);
         setUser(userData);
         await saveSecureToken(access_token);
-        return { success: true, message: 'Đăng nhập thành công' };
+        return { success: true, message: 'Đăng nhập thành công', user: userData };
       }
       return { success: false, message: response.data.message || 'Đăng nhập thất bại' };
     } catch (error: any) {
@@ -145,7 +145,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
       if (response.data.success && response.data.user) {
         setUser(response.data.user);
-        return { success: true, message: 'Đăng nhập thành công' };
+        return { success: true, message: 'Đăng nhập thành công', user: response.data.user };
       }
       return { success: false, message: 'Không thể lấy thông tin tài khoản' };
     } catch (error: any) {

@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { ToastProvider } from '@/src/components/ui/Toast';
+import { OwnerRestaurantProvider } from '@/src/auth/OwnerRestaurantContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -47,7 +48,9 @@ export default function RootLayout() {
   return (
     <ToastProvider>
       <AuthProvider>
-        <RootLayoutNav />
+        <OwnerRestaurantProvider>
+          <RootLayoutNav />
+        </OwnerRestaurantProvider>
       </AuthProvider>
     </ToastProvider>
   );
@@ -62,6 +65,21 @@ function RootLayoutNav() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(owner-tabs)" />
+        <Stack.Screen name="owner/booking/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/menu/item-form" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/menu/category-form" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/voucher/form" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/vouchers" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/reviews" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/tables/form" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/tables/layout" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/waitlist/index" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/waitlist/assign" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/blocked-slots/index" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/wallet/index" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/wallet/withdraw" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/wallet/bank" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>

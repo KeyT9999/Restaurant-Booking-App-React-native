@@ -5,18 +5,22 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { T } from '@/src/theme/tokens';
 
 export default function Index() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoading) return;
 
     if (isAuthenticated) {
-      router.replace('/(tabs)');
+      if (user?.role === 'restaurant_owner') {
+        router.replace('/(owner-tabs)' as any);
+      } else {
+        router.replace('/(tabs)');
+      }
     } else {
       router.replace('/(auth)/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, user, router]);
 
   return (
     <View style={styles.container}>
