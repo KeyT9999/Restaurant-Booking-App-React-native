@@ -14,6 +14,8 @@ export default function Index() {
     if (isAuthenticated) {
       if (user?.role === 'restaurant_owner') {
         router.replace('/(owner-tabs)' as any);
+      } else if (user?.role === 'admin') {
+        router.replace('/(admin)/dashboard');
       } else {
         router.replace('/(tabs)');
       }

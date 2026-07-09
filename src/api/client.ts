@@ -6,8 +6,14 @@ const IP_CONFIG_KEY = 'bookeat_api_base_url';
 
 export const getCustomBaseURL = async (): Promise<string> => {
   try {
+    const envUrl = process.env.EXPO_PUBLIC_API_URL;
     const customUrl = await SecureStore.getItemAsync(IP_CONFIG_KEY);
-    return customUrl || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    // If stored URL is localhost but we have a real env URL, clear the stale cache
+    if (customUrl && customUrl.includes('localhost') && envUrl && !envUrl.includes('localhost')) {
+      await SecureStore.deleteItemAsync(IP_CONFIG_KEY);
+      return envUrl;
+    }
+    return customUrl || envUrl || 'http://localhost:3001/api/v1';
   } catch (e) {
     return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
   }
