@@ -24,7 +24,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+  const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || 'dummy-client-id.apps.googleusercontent.com';
 
   // Setup client-side Google auth provider session
   const [request, response, promptAsync] = Google.useAuthRequest({
