@@ -249,7 +249,7 @@ export default function OwnerBookings() {
           renderItem={({ item }) => {
             const statusStyle = getStatusStyle(item.status);
             const dateStr = new Date(item.bookingDate).toLocaleDateString('vi-VN');
-            const hasDeposit = item.depositAmount && item.depositAmount > 0;
+            const hasDeposit = !!(item.depositAmount && item.depositAmount > 0);
 
             return (
               <TouchableOpacity

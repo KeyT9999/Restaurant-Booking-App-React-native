@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Switch, Modal, Alert, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Switch, Modal, Alert, RefreshControl, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
 import { ownerApi } from '@/src/api/owner.api';
@@ -220,99 +220,110 @@ export default function BlockedSlotsScreen() {
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Khóa khung giờ đặt</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <FontAwesome name="times" size={18} color={T.color.text2} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.modalForm}>
-              {/* Date */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Ngày khóa (YYYY-MM-DD) *</Text>
-                <TextInput
-                  placeholder="Ví dụ: 2026-07-25"
-                  placeholderTextColor={T.color.placeholder}
-                  value={date}
-                  onChangeText={setDate}
-                  style={styles.input}
-                />
-              </View>
-
-              {/* Slot type switch */}
-              <View style={styles.switchRow}>
-                <Text style={styles.label}>Khóa cả ngày</Text>
-                <Switch
-                  value={slotType === 'full_day'}
-                  onValueChange={(val) => setSlotType(val ? 'full_day' : 'time_range')}
-                  trackColor={{ false: '#3A4255', true: 'rgba(212, 150, 83, 0.4)' }}
-                  thumbColor={slotType === 'full_day' ? T.color.primary : T.color.text3}
-                />
-              </View>
-
-              {/* Time Range Inputs */}
-              {slotType === 'time_range' && (
-                <View style={styles.timeInputsRow}>
-                  <View style={[styles.inputGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>Giờ bắt đầu (HH:mm) *</Text>
-                    <TextInput
-                      placeholder="11:00"
-                      placeholderTextColor={T.color.placeholder}
-                      value={startTime}
-                      onChangeText={setStartTime}
-                      style={styles.input}
-                    />
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={{ width: '100%' }}
+            >
+              <TouchableWithoutFeedback onPress={() => {}}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Khóa khung giờ đặt</Text>
+                    <TouchableOpacity onPress={() => setModalVisible(false)}>
+                      <FontAwesome name="times" size={18} color={T.color.text2} />
+                    </TouchableOpacity>
                   </View>
-                  <View style={[styles.inputGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>Giờ kết thúc (HH:mm) *</Text>
-                    <TextInput
-                      placeholder="14:00"
-                      placeholderTextColor={T.color.placeholder}
-                      value={endTime}
-                      onChangeText={setEndTime}
-                      style={styles.input}
-                    />
+
+                  <ScrollView contentContainerStyle={styles.modalForm} keyboardShouldPersistTaps="handled">
+                    {/* Date */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Ngày khóa (YYYY-MM-DD) *</Text>
+                      <TextInput
+                        placeholder="Ví dụ: 2026-07-25"
+                        placeholderTextColor={T.color.placeholder}
+                        value={date}
+                        onChangeText={setDate}
+                        style={styles.input}
+                      />
+                    </View>
+
+                    {/* Slot type switch */}
+                    <View style={styles.switchRow}>
+                      <Text style={styles.label}>Khóa cả ngày</Text>
+                      <Switch
+                        value={slotType === 'full_day'}
+                        onValueChange={(val) => setSlotType(val ? 'full_day' : 'time_range')}
+                        trackColor={{ false: '#3A4255', true: 'rgba(212, 150, 83, 0.4)' }}
+                        thumbColor={slotType === 'full_day' ? T.color.primary : T.color.text3}
+                      />
+                    </View>
+
+                    {/* Time Range Inputs */}
+                    {slotType === 'time_range' && (
+                      <View style={styles.timeInputsRow}>
+                        <View style={[styles.inputGroup, { flex: 1 }]}>
+                          <Text style={styles.label}>Giờ bắt đầu (HH:mm) *</Text>
+                          <TextInput
+                            placeholder="11:00"
+                            placeholderTextColor={T.color.placeholder}
+                            value={startTime}
+                            onChangeText={setStartTime}
+                            style={styles.input}
+                          />
+                        </View>
+                        <View style={[styles.inputGroup, { flex: 1 }]}>
+                          <Text style={styles.label}>Giờ kết thúc (HH:mm) *</Text>
+                          <TextInput
+                            placeholder="14:00"
+                            placeholderTextColor={T.color.placeholder}
+                            value={endTime}
+                            onChangeText={setEndTime}
+                            style={styles.input}
+                          />
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Reason */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Lý do khóa</Text>
+                      <TextInput
+                        placeholder="Ví dụ: Tổ chức tiệc riêng, sửa chữa..."
+                        placeholderTextColor={T.color.placeholder}
+                        value={reason}
+                        onChangeText={setReason}
+                        style={styles.input}
+                        returnKeyType="done"
+                        onSubmitEditing={Keyboard.dismiss}
+                      />
+                    </View>
+                  </ScrollView>
+
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      style={styles.cancelBtnModal}
+                      onPress={() => setModalVisible(false)}
+                    >
+                      <Text style={styles.cancelBtnTextModal}>Huỷ</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.submitBtn}
+                      disabled={submitting}
+                      onPress={handleSaveSlot}
+                    >
+                      {submitting ? (
+                        <ActivityIndicator color="#0C0F16" />
+                      ) : (
+                        <Text style={styles.submitBtnText}>Xác nhận khóa</Text>
+                      )}
+                    </TouchableOpacity>
                   </View>
                 </View>
-              )}
-
-              {/* Reason */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Lý do khóa</Text>
-                <TextInput
-                  placeholder="Ví dụ: Tổ chức tiệc riêng, sửa chữa..."
-                  placeholderTextColor={T.color.placeholder}
-                  value={reason}
-                  onChangeText={setReason}
-                  style={styles.input}
-                />
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelBtnModal}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.cancelBtnTextModal}>Huỷ</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.submitBtn}
-                disabled={submitting}
-                onPress={handleSaveSlot}
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#0C0F16" />
-                ) : (
-                  <Text style={styles.submitBtnText}>Xác nhận khóa</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );

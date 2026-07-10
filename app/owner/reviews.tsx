@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Modal, RefreshControl, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Modal, RefreshControl, Platform, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
 import { ownerApi } from '@/src/api/owner.api';
@@ -210,63 +210,76 @@ export default function ReviewsScreen() {
         </ScrollView>
       )}
 
-      {/* Reply Modal */}
       <Modal
         visible={replyModalVisible}
         transparent={true}
         animationType="slide"
         onRequestClose={() => setReplyModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {selectedReview?.ownerReply?.content ? 'Sửa phản hồi' : 'Phản hồi đánh giá'}
-              </Text>
-              <TouchableOpacity onPress={() => setReplyModalVisible(false)}>
-                <FontAwesome name="times" size={18} color={T.color.text2} />
-              </TouchableOpacity>
-            </View>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={{ width: '100%' }}
+            >
+              <TouchableWithoutFeedback onPress={() => {}}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>
+                      {selectedReview?.ownerReply?.content ? 'Sửa phản hồi' : 'Phản hồi đánh giá'}
+                    </Text>
+                    <TouchableOpacity onPress={() => setReplyModalVisible(false)}>
+                      <FontAwesome name="times" size={18} color={T.color.text2} />
+                    </TouchableOpacity>
+                  </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.modalLabel}>Đánh giá của khách:</Text>
-              <Text style={styles.modalGuestComment} numberOfLines={3}>
-                "{selectedReview?.comment || 'Không có bình luận'}"
-              </Text>
+                  <View style={styles.modalBody}>
+                    <Text style={styles.modalLabel}>Đánh giá của khách:</Text>
+                    <Text style={styles.modalGuestComment} numberOfLines={3}>
+                      "{selectedReview?.comment || 'Không có bình luận'}"
+                    </Text>
 
-              <Text style={[styles.modalLabel, { marginTop: T.space.md }]}>Nội dung phản hồi:</Text>
-              <TextInput
-                placeholder="Nhập lời cảm ơn hoặc phản hồi của bạn..."
-                placeholderTextColor={T.color.placeholder}
-                value={replyText}
-                onChangeText={setReplyText}
-                multiline
-                numberOfLines={5}
-                style={styles.replyInput}
-              />
-            </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: T.space.md, marginBottom: T.space.xs }}>
+                      <Text style={styles.modalLabel}>Nội dung phản hồi:</Text>
+                      <TouchableOpacity onPress={Keyboard.dismiss} style={{ paddingVertical: 2, paddingHorizontal: 6, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 4 }}>
+                        <Text style={{ color: T.color.primary, fontSize: 11, fontWeight: '600' }}>Ẩn bàn phím</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <TextInput
+                      placeholder="Nhập lời cảm ơn hoặc phản hồi của bạn..."
+                      placeholderTextColor={T.color.placeholder}
+                      value={replyText}
+                      onChangeText={setReplyText}
+                      multiline
+                      numberOfLines={5}
+                      style={styles.replyInput}
+                    />
+                  </View>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelBtnModal}
-                onPress={() => setReplyModalVisible(false)}
-              >
-                <Text style={styles.cancelBtnTextModal}>Huỷ</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.submitBtn}
-                disabled={submittingReply}
-                onPress={handleSaveReply}
-              >
-                {submittingReply ? (
-                  <ActivityIndicator color="#0C0F16" />
-                ) : (
-                  <Text style={styles.submitBtnText}>Gửi phản hồi</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      style={styles.cancelBtnModal}
+                      onPress={() => setReplyModalVisible(false)}
+                    >
+                      <Text style={styles.cancelBtnTextModal}>Huỷ</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.submitBtn}
+                      disabled={submittingReply}
+                      onPress={handleSaveReply}
+                    >
+                      {submittingReply ? (
+                        <ActivityIndicator color="#0C0F16" />
+                      ) : (
+                        <Text style={styles.submitBtnText}>Gửi phản hồi</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );

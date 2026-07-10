@@ -136,7 +136,7 @@ export default function OwnerVouchersScreen() {
               <View key={item._id} style={styles.card}>
                 <View style={styles.cardHeader}>
                   <View style={styles.codeWrapper}>
-                    <Text style={styles.codeText}>{item.code}</Text>
+                    <Text style={styles.codeText} numberOfLines={1}>{item.code}</Text>
                     {hasExpired && <Text style={styles.expiredLabel}>Hết hạn</Text>}
                   </View>
 
@@ -243,6 +243,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: T.space.sm,
+    flex: 1,
+    marginRight: T.space.md,
   },
   codeText: {
     color: T.color.primary,
@@ -254,6 +256,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: T.radius.sm,
+    flexShrink: 1,
   },
   expiredLabel: {
     color: T.color.error,
