@@ -8,6 +8,7 @@ import { BackButton } from '@/src/components/ui/BackButton';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { EmptyState } from '@/src/components/layout/EmptyState';
 import { chatApi } from '@/src/api/chat.api';
+import { useAuth } from '@/src/auth/useAuth';
 
 interface Conversation {
   id: string;
@@ -16,6 +17,11 @@ interface Conversation {
     id: string;
     name: string;
     logo?: string;
+  };
+  customer?: {
+    id: string;
+    fullName: string;
+    avatarUrl?: string;
   };
   lastMessage?: {
     content: string;
@@ -38,6 +44,9 @@ function timeAgo(dateStr: string): string {
 
 export default function ConversationsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const isOwner = user?.role === 'restaurant_owner';
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -66,22 +75,39 @@ export default function ConversationsScreen() {
   };
 
   const filteredConversations = conversations.filter((c) => {
-    const name = c.restaurant?.name || 'Nhà hàng';
+    const name = isOwner
+      ? (c.customer?.fullName || 'Khách hàng')
+      : (c.restaurant?.name || 'Nhà hàng');
     return name.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   const renderItem = ({ item }: { item: Conversation }) => {
-    const name = item.restaurant?.name || 'Nhà hàng';
-    const logo = item.restaurant?.logo;
+    const name = isOwner ? (item.customer?.fullName || 'Khách hàng') : (item.restaurant?.name || 'Nhà hàng');
+    const logo = isOwner ? item.customer?.avatarUrl : item.restaurant?.logo;
     const lastMsg = item.lastMessage?.content || 'Bắt đầu cuộc trò chuyện...';
     const time = item.updatedAt ? timeAgo(item.updatedAt) : '';
     const hasUnread = (item.unreadCount ?? 0) > 0;
+
+    const handlePress = () => {
+      if (isOwner) {
+        router.push({
+          pathname: `/chat/${item.restaurantId}`,
+          params: {
+            conversationId: item.id,
+            customerName: name,
+            customerAvatar: logo || '',
+          },
+        } as any);
+      } else {
+        router.push(`/chat/${item.restaurantId}` as any);
+      }
+    };
 
     return (
       <Pressable
         style={styles.convCard}
         android_ripple={{ color: 'rgba(255,255,255,0.05)' }}
-        onPress={() => router.push(`/chat/${item.restaurantId}`)}
+        onPress={handlePress}
       >
         {/* Avatar */}
         <View style={styles.avatarWrapper}>

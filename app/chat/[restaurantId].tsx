@@ -52,7 +52,12 @@ export default function ChatWithRestaurantScreen() {
   const router = useRouter();
   const { showToast } = useToast();
   const { user, isAuthenticated } = useAuth();
-  const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
+  const { restaurantId, conversationId: queryConvId, customerName: queryCustomerName, customerAvatar: queryCustomerAvatar } = useLocalSearchParams<{
+    restaurantId: string;
+    conversationId?: string;
+    customerName?: string;
+    customerAvatar?: string;
+  }>();
   const scrollViewRef = useRef<ScrollView>(null);
 
   const [loading, setLoading] = useState(true);
@@ -66,31 +71,44 @@ export default function ChatWithRestaurantScreen() {
   const initChat = useCallback(async () => {
     if (!restaurantId || !isAuthenticated) return;
     try {
-      const restRes = await restaurantApi.getById(restaurantId);
-      if (restRes.success && restRes.data) {
-        setRestaurantName(restRes.data.name || 'Nhà hàng');
-        setRestaurantLogo(restRes.data.logo || null);
-      }
+      if (queryConvId) {
+        setConversationId(queryConvId);
+        setRestaurantName(queryCustomerName || 'Khách hàng');
+        setRestaurantLogo(queryCustomerAvatar || null);
 
-      const convRes = await chatApi.createConversation(restaurantId);
-      if (convRes.success && convRes.data) {
-        const conv = convRes.data;
-        setConversationId(conv.id);
-
-        const msgRes = await chatApi.getMessages(conv.id, { limit: 55 });
+        const msgRes = await chatApi.getMessages(queryConvId, { limit: 55 });
         if (msgRes.success && msgRes.data?.messages) {
           setMessages(msgRes.data.messages);
         }
 
-        await chatApi.markRead(conv.id);
+        await chatApi.markRead(queryConvId);
+      } else {
+        const restRes = await restaurantApi.getById(restaurantId);
+        if (restRes.success && restRes.data) {
+          setRestaurantName(restRes.data.name || 'Nhà hàng');
+          setRestaurantLogo(restRes.data.logo || null);
+        }
+
+        const convRes = await chatApi.createConversation(restaurantId);
+        if (convRes.success && convRes.data) {
+          const conv = convRes.data;
+          setConversationId(conv.id);
+
+          const msgRes = await chatApi.getMessages(conv.id, { limit: 55 });
+          if (msgRes.success && msgRes.data?.messages) {
+            setMessages(msgRes.data.messages);
+          }
+
+          await chatApi.markRead(conv.id);
+        }
       }
     } catch (error) {
       console.warn('Lỗi khởi tạo cuộc trò chuyện:', error);
-      showToast('Không thể kết nối trò chuyện với nhà hàng', 'error');
+      showToast('Không thể kết nối trò chuyện', 'error');
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, isAuthenticated, showToast]);
+  }, [restaurantId, queryConvId, queryCustomerName, queryCustomerAvatar, isAuthenticated, showToast]);
 
   useEffect(() => {
     initChat();
