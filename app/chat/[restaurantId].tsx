@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Image } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { chatApi } from '@/src/api/chat.api';
@@ -30,6 +30,24 @@ const formatMessageTime = (dateString: string): string => {
   }
 };
 
+const formatDateSeparator = (dateString: string): string => {
+  try {
+    const date = new Date(dateString);
+    const today = new Date();
+    if (date.toDateString() === today.toDateString()) {
+      return 'Hôm nay';
+    }
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+      return 'Hôm qua';
+    }
+    return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  } catch (e) {
+    return '';
+  }
+};
+
 export default function ChatWithRestaurantScreen() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -39,34 +57,31 @@ export default function ChatWithRestaurantScreen() {
 
   const [loading, setLoading] = useState(true);
   const [restaurantName, setRestaurantName] = useState('Nhà hàng');
+  const [restaurantLogo, setRestaurantLogo] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMsg, setInputMsg] = useState('');
   const [sending, setSending] = useState(false);
 
-  // Initialize conversation and fetch messages
   const initChat = useCallback(async () => {
     if (!restaurantId || !isAuthenticated) return;
     try {
-      // 1. Get restaurant details for header
       const restRes = await restaurantApi.getById(restaurantId);
       if (restRes.success && restRes.data) {
         setRestaurantName(restRes.data.name || 'Nhà hàng');
+        setRestaurantLogo(restRes.data.logo || null);
       }
 
-      // 2. Open or create conversation
       const convRes = await chatApi.createConversation(restaurantId);
       if (convRes.success && convRes.data) {
         const conv = convRes.data;
         setConversationId(conv.id);
 
-        // 3. Get messages
-        const msgRes = await chatApi.getMessages(conv.id, { limit: 50 });
+        const msgRes = await chatApi.getMessages(conv.id, { limit: 55 });
         if (msgRes.success && msgRes.data?.messages) {
           setMessages(msgRes.data.messages);
         }
 
-        // 4. Mark conversation as read
         await chatApi.markRead(conv.id);
       }
     } catch (error) {
@@ -81,29 +96,26 @@ export default function ChatWithRestaurantScreen() {
     initChat();
   }, [initChat]);
 
-  // Polling for new messages every 3 seconds
+  // Polling for messages
   useEffect(() => {
     if (!conversationId) return;
 
     const interval = setInterval(async () => {
       try {
-        const msgRes = await chatApi.getMessages(conversationId, { limit: 50 });
+        const msgRes = await chatApi.getMessages(conversationId, { limit: 55 });
         if (msgRes.success && msgRes.data?.messages) {
           setMessages(msgRes.data.messages);
         }
-      } catch (e) {
-        // Silent catch polling errors
-      }
-    }, 3000);
+      } catch (e) {}
+    }, 4000);
 
     return () => clearInterval(interval);
   }, [conversationId]);
 
-  // Scroll to bottom when messages update
   useEffect(() => {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 150);
+    }, 200);
   }, [messages]);
 
   const handleSend = async () => {
@@ -112,7 +124,6 @@ export default function ChatWithRestaurantScreen() {
     setInputMsg('');
     setSending(true);
 
-    // Optimistic UI update
     const tempId = Math.random().toString();
     const optimisticMsg: Message = {
       id: tempId,
@@ -126,13 +137,11 @@ export default function ChatWithRestaurantScreen() {
     try {
       const res = await chatApi.sendMessage(conversationId, content);
       if (res.success && res.data?.message) {
-        // Replace temp optimistic message with real message
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? res.data.message : m))
         );
       }
     } catch (error) {
-      // Remove optimistic message on fail
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       showToast('Gửi tin nhắn thất bại', 'error');
     } finally {
@@ -162,48 +171,64 @@ export default function ChatWithRestaurantScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       style={styles.container}
     >
-      {/* ─── Header ─── */}
+      {/* Header */}
       <View style={styles.header}>
         <BackButton onPress={() => router.back()} style={styles.backBtn} />
+        {restaurantLogo ? (
+          <Image source={{ uri: restaurantLogo }} style={styles.logo as any} />
+        ) : (
+          <View style={styles.logoFallback}>
+            <Text style={styles.logoInitial}>{restaurantName[0]?.toUpperCase()}</Text>
+          </View>
+        )}
         <View style={styles.headerTextWrapper}>
           <Text style={[typography.titleSM, styles.title]} numberOfLines={1}>{restaurantName}</Text>
           <View style={styles.statusRow}>
             <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Phản hồi nhanh</Text>
+            <Text style={styles.statusText}>Trực tuyến</Text>
           </View>
         </View>
       </View>
 
-      {/* ─── Chat messages ─── */}
+      {/* Messages */}
       <ScrollView
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.chatContent}
       >
-        {messages.map((item) => {
+        {messages.map((item, idx) => {
           const isUser = item.senderRole === 'customer';
+          
+          // Date Separator logic
+          const currentDateStr = new Date(item.createdAt).toDateString();
+          const prevDateStr = idx > 0 ? new Date(messages[idx - 1].createdAt).toDateString() : null;
+          const showDateSep = currentDateStr !== prevDateStr;
+
           return (
-            <View
-              key={item.id}
-              style={[
-                styles.messageRow,
-                isUser ? styles.userRow : styles.restaurantRow,
-              ]}
-            >
-              <View style={[styles.bubble, isUser ? styles.userBubble : styles.restaurantBubble]}>
-                <Text style={styles.messageText}>{item.content}</Text>
-                <Text style={[styles.timeText, isUser ? styles.userTimeText : styles.restaurantTimeText]}>
-                  {formatMessageTime(item.createdAt)}
-                </Text>
+            <View key={item.id}>
+              {showDateSep && (
+                <View style={styles.dateSeparator}>
+                  <Text style={styles.dateSeparatorText}>{formatDateSeparator(item.createdAt)}</Text>
+                </View>
+              )}
+
+              <View style={[styles.messageRow, isUser ? styles.userRow : styles.restaurantRow]}>
+                <View style={[styles.bubble, isUser ? styles.userBubble : styles.restaurantBubble]}>
+                  <Text style={[styles.messageText, isUser ? styles.userMessageText : styles.restMessageText]}>{item.content}</Text>
+                  <Text style={[styles.timeText, isUser ? styles.userTimeText : styles.restaurantTimeText]}>
+                    {formatMessageTime(item.createdAt)}
+                  </Text>
+                </View>
               </View>
             </View>
           );
         })}
       </ScrollView>
 
-      {/* ─── Input Bar ─── */}
+      {/* Input Bar */}
       <View style={styles.inputBar}>
         <TextInput
           style={styles.input}
@@ -219,7 +244,7 @@ export default function ChatWithRestaurantScreen() {
           style={[styles.sendBtn, (!inputMsg.trim() || sending) && styles.sendBtnDisabled]}
           disabled={!inputMsg.trim() || sending}
         >
-          <FontAwesome name="paper-plane" size={14} color="#0C0F16" />
+          <FontAwesome name="paper-plane" size={12} color="#0C0F16" />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -240,14 +265,33 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: 56,
     paddingHorizontal: T.space.lg,
     paddingBottom: T.space.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.03)',
+    borderBottomColor: T.color.border,
+    gap: T.space.md,
   },
   backBtn: {
-    marginRight: T.space.md,
+    marginRight: 0,
+  },
+  logo: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  logoFallback: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: T.color.elevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoInitial: {
+    color: T.color.primary,
+    fontSize: 16,
+    fontWeight: '700',
   },
   headerTextWrapper: {
     flex: 1,
@@ -276,9 +320,22 @@ const styles = StyleSheet.create({
     padding: T.space.lg,
     paddingBottom: 40,
   },
+  dateSeparator: {
+    alignItems: 'center',
+    marginVertical: T.space.md,
+  },
+  dateSeparatorText: {
+    color: T.color.text3,
+    fontSize: 11,
+    fontWeight: '600',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
   messageRow: {
     flexDirection: 'row',
-    marginBottom: T.space.base,
+    marginBottom: T.space.md,
   },
   userRow: {
     justifyContent: 'flex-end',
@@ -303,9 +360,15 @@ const styles = StyleSheet.create({
     borderColor: T.color.border,
   },
   messageText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 13.5,
     lineHeight: 18,
+  },
+  userMessageText: {
+    color: '#0C0F16',
+    fontWeight: '600',
+  },
+  restMessageText: {
+    color: '#FFFFFF',
   },
   timeText: {
     fontSize: 9,
@@ -326,12 +389,12 @@ const styles = StyleSheet.create({
     paddingTop: T.space.sm,
     paddingBottom: Platform.OS === 'ios' ? 34 : T.space.lg,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.03)',
+    borderTopColor: T.color.border,
     backgroundColor: '#0C0F16',
   },
   input: {
     flex: 1,
-    height: 40,
+    height: 38,
     backgroundColor: T.color.card,
     borderRadius: T.radius.full,
     borderWidth: 1,
@@ -341,9 +404,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: T.color.primary,
     justifyContent: 'center',
     alignItems: 'center',

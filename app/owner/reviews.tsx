@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Modal, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Modal, RefreshControl, Platform } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
 import { ownerApi } from '@/src/api/owner.api';
@@ -8,15 +8,19 @@ import { T } from '@/src/theme/tokens';
 import { typography } from '@/src/theme/typography';
 import { useToast } from '@/src/components/ui/Toast';
 
-export default function OwnerReviewsScreen() {
+export default function ReviewsScreen() {
   const { activeRestaurant } = useOwnerRestaurant();
   const { showToast } = useToast();
 
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Reply Form states
+  const [replyModalVisible, setReplyModalVisible] = useState(false);
+  const [selectedReview, setSelectedReview] = useState<any>(null);
   const [replyText, setReplyText] = useState('');
-  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [submittingReply, setSubmittingReply] = useState(false);
 
   const fetchReviews = async (showLoading = true) => {
     if (!activeRestaurant?.id) return;
@@ -25,13 +29,14 @@ export default function OwnerReviewsScreen() {
     try {
       const res = await ownerApi.getReviews(activeRestaurant.id);
       if (res.success) {
-        setReviews(res.data.reviews || res.data || []);
+        setReviews(res.data?.reviews || res.data || []);
       }
     } catch (error) {
-      console.error('Error fetching reviews:', error);
-      showToast('Không thể lấy danh sách đánh giá', 'error');
+      console.error('Error fetching owner reviews:', error);
+      showToast('Không thể tải đánh giá nhà hàng', 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -40,178 +45,224 @@ export default function OwnerReviewsScreen() {
     fetchReviews();
   }, [activeRestaurant]);
 
-  const openReplyModal = (reviewId: string) => {
-    const review = reviews.find((r) => r.id === reviewId || r._id === reviewId);
-    setSelectedReviewId(reviewId);
-    setReplyText(review?.ownerReply?.comment || '');
-    setModalVisible(true);
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchReviews(false);
   };
 
-  const handleSendReply = async () => {
-    if (!selectedReviewId) return;
-    if (replyText.trim().length === 0) {
+  const openReplyModal = (review: any) => {
+    setSelectedReview(review);
+    setReplyText(review.ownerReply?.content || '');
+    setReplyModalVisible(true);
+  };
+
+  const handleSaveReply = async () => {
+    if (!selectedReview?._id && !selectedReview?.id) return;
+    if (!replyText.trim()) {
       showToast('Vui lòng nhập nội dung phản hồi', 'error');
       return;
     }
 
+    const reviewId = selectedReview._id || selectedReview.id;
+    setSubmittingReply(true);
+
     try {
-      const res = await ownerApi.replyReview(selectedReviewId, replyText.trim());
+      const res = await ownerApi.replyReview(reviewId, replyText.trim());
       if (res.success) {
-        showToast('Đã gửi phản hồi đánh giá!', 'success');
-        setModalVisible(false);
+        showToast('Đã gửi phản hồi thành công!', 'success');
+        setReplyModalVisible(false);
         setReplyText('');
         fetchReviews(false);
       } else {
-        showToast(res.message || 'Gửi phản hồi thất bại', 'error');
+        showToast(res.message || 'Thao tác thất bại', 'error');
       }
     } catch (e: any) {
       showToast(e.response?.data?.message || 'Có lỗi xảy ra', 'error');
+    } finally {
+      setSubmittingReply(false);
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={T.color.primary} />
-      </View>
-    );
-  }
+  // Stats calculation
+  const totalReviews = reviews.length;
+  const avgRating = totalReviews > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1) : '0.0';
 
-  // Safe stats
-  const averageRating = activeRestaurant?.stats?.averageRating || 0;
-  const totalReviews = activeRestaurant?.stats?.totalReviews || 0;
+  // Stars count mapping
+  const starCounts = [0, 0, 0, 0, 0]; // index 0 for 1 star, index 4 for 5 stars
+  reviews.forEach((r) => {
+    const starIdx = Math.min(Math.max(1, Math.round(r.rating)), 5) - 1;
+    starCounts[starIdx]++;
+  });
 
   return (
     <View style={styles.container}>
-      <RestaurantHeader title="Đánh giá" showBack={true} />
+      <RestaurantHeader title="Phản hồi & Đánh giá" showBack={true} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Rating Header Overview Card */}
-        <View style={styles.overviewCard}>
-          <View style={styles.scoreCol}>
-            <Text style={styles.ratingScore}>{averageRating.toFixed(1)}</Text>
-            <View style={styles.starsRow}>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <FontAwesome
-                  key={i}
-                  name={i < Math.round(averageRating) ? 'star' : 'star-o'}
-                  size={14}
-                  color={T.color.primary}
-                  style={{ marginRight: 2 }}
-                />
-              ))}
-            </View>
-            <Text style={styles.reviewCountText}>{totalReviews} đánh giá</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.infoCol}>
-            <Text style={styles.infoTitle}>Nhận xét khách hàng</Text>
-            <Text style={styles.infoSubtitle}>Xem và trực tiếp giải đáp thắc mắc, đóng góp ý kiến của thực khách.</Text>
-          </View>
+      {loading && reviews.length === 0 ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={T.color.primary} />
         </View>
-
-        {/* Reviews List */}
-        {reviews.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <FontAwesome name="star-o" size={40} color={T.color.text3} style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyText}>Chưa có lượt đánh giá nào dành cho nhà hàng</Text>
-          </View>
-        ) : (
-          reviews.map((item) => {
-            const reviewId = item.id || item._id;
-            const reviewerName = item.customer?.fullName || item.customerId?.fullName || item.customerName || 'Khách hàng ẩn danh';
-            const rating = item.rating || 5;
-            const comment = item.comment || '(Không có nội dung nhận xét)';
-            const dateStr = new Date(item.createdAt).toLocaleDateString('vi-VN');
-            const hasReply = !!item.ownerReply?.comment;
-
-            return (
-              <View key={reviewId} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View>
-                    <Text style={styles.reviewerName}>{reviewerName}</Text>
-                    <Text style={styles.reviewDate}>{dateStr}</Text>
-                  </View>
-                  <View style={styles.starsRow}>
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <FontAwesome
-                        key={i}
-                        name={i < rating ? 'star' : 'star-o'}
-                        size={12}
-                        color={T.color.primary}
-                        style={{ marginLeft: 2 }}
-                      />
-                    ))}
-                  </View>
-                </View>
-
-                {/* Comment */}
-                <Text style={styles.commentText}>{comment}</Text>
-
-                {/* Owner Reply if exists */}
-                {hasReply && (
-                  <View style={styles.replyBox}>
-                    <View style={styles.replyBoxHeader}>
-                      <FontAwesome name="reply" size={11} color={T.color.primary} style={{ marginRight: 6 }} />
-                      <Text style={styles.replyTitle}>Phản hồi từ nhà hàng:</Text>
-                    </View>
-                    <Text style={styles.replyContentText}>{item.ownerReply.comment}</Text>
-                  </View>
-                )}
-
-                {/* Action button */}
-                <TouchableOpacity
-                  style={[styles.replyBtn, hasReply && styles.replyBtnEdit]}
-                  onPress={() => openReplyModal(reviewId)}
-                >
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={T.color.primary} />}
+        >
+          {/* Summary Breakdown Header */}
+          <View style={styles.summaryCard}>
+            <View style={styles.avgSection}>
+              <Text style={styles.avgNumber}>{avgRating}</Text>
+              <View style={styles.starsRow}>
+                {Array.from({ length: 5 }).map((_, i) => (
                   <FontAwesome
-                    name={hasReply ? 'pencil' : 'comment-o'}
+                    key={i}
+                    name={i < Math.round(Number(avgRating)) ? 'star' : 'star-o'}
                     size={12}
-                    color={hasReply ? T.color.text2 : T.color.text1}
-                    style={{ marginRight: 6 }}
+                    color="#F59E0B"
                   />
-                  <Text style={[styles.replyBtnText, hasReply && styles.replyBtnEditText]}>
-                    {hasReply ? 'Sửa phản hồi' : 'Trả lời đánh giá'}
-                  </Text>
-                </TouchableOpacity>
+                ))}
               </View>
-            );
-          })
-        )}
-      </ScrollView>
+              <Text style={styles.reviewCountText}>{totalReviews} đánh giá</Text>
+            </View>
+
+            <View style={styles.dividerVertical} />
+
+            <View style={styles.progressSection}>
+              {[5, 4, 3, 2, 1].map((stars) => {
+                const count = starCounts[stars - 1];
+                const pct = totalReviews > 0 ? (count / totalReviews) * 100 : 0;
+                return (
+                  <View key={stars} style={styles.progressBarRow}>
+                    <Text style={styles.starNumText}>{stars}★</Text>
+                    <View style={styles.progressBarBackground}>
+                      <View style={[styles.progressBarFill, { width: `${pct}%` }]} />
+                    </View>
+                    <Text style={styles.progressBarValText}>{count}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* List of reviews */}
+          <View style={styles.reviewsList}>
+            {reviews.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <FontAwesome name="comments-o" size={40} color={T.color.text3} style={{ marginBottom: 12 }} />
+                <Text style={styles.emptyText}>Chưa có đánh giá nào từ khách hàng</Text>
+              </View>
+            ) : (
+              reviews.map((item) => {
+                const customerName = item.customerName || item.customer?.fullName || 'Khách ẩn danh';
+                const createdDate = new Date(item.createdAt).toLocaleDateString('vi-VN');
+                const hasReply = !!item.ownerReply?.content;
+
+                return (
+                  <View key={item._id || item.id} style={styles.card}>
+                    <View style={styles.cardHeader}>
+                      <View style={styles.customerRow}>
+                        <View style={styles.avatarFallback}>
+                          <Text style={styles.avatarInitial}>{customerName[0]?.toUpperCase()}</Text>
+                        </View>
+                        <View>
+                          <Text style={styles.customerName}>{customerName}</Text>
+                          <View style={styles.starsRow}>
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <FontAwesome
+                                key={i}
+                                name={i < item.rating ? 'star' : 'star-o'}
+                                size={10}
+                                color="#F59E0B"
+                              />
+                            ))}
+                            <Text style={styles.dateText}>{createdDate}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+
+                    <Text style={styles.reviewComment}>{item.comment || 'Khách hàng không để lại bình luận.'}</Text>
+
+                    {/* Owner reply content */}
+                    {hasReply && (
+                      <View style={styles.replyBox}>
+                        <View style={styles.replyBoxHeader}>
+                          <FontAwesome name="reply" size={10} color={T.color.primary} style={{ marginRight: 6 }} />
+                          <Text style={styles.replyTitle}>Phản hồi từ bạn</Text>
+                        </View>
+                        <Text style={styles.replyContent}>{item.ownerReply.content}</Text>
+                      </View>
+                    )}
+
+                    <View style={styles.cardActions}>
+                      <TouchableOpacity
+                        style={styles.replyBtn}
+                        onPress={() => openReplyModal(item)}
+                      >
+                        <FontAwesome name={hasReply ? 'edit' : 'reply'} size={11} color={T.color.primary} style={{ marginRight: 6 }} />
+                        <Text style={styles.replyBtnText}>{hasReply ? 'Sửa phản hồi' : 'Phản hồi khách'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        </ScrollView>
+      )}
 
       {/* Reply Modal */}
       <Modal
-        visible={modalVisible}
+        visible={replyModalVisible}
         transparent={true}
-        animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
+        animationType="slide"
+        onRequestClose={() => setReplyModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Phản hồi đánh giá</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <Text style={styles.modalTitle}>
+                {selectedReview?.ownerReply?.content ? 'Sửa phản hồi' : 'Phản hồi đánh giá'}
+              </Text>
+              <TouchableOpacity onPress={() => setReplyModalVisible(false)}>
                 <FontAwesome name="times" size={18} color={T.color.text2} />
               </TouchableOpacity>
             </View>
 
-            <TextInput
-              multiline
-              numberOfLines={4}
-              placeholder="Nhập nội dung phản hồi của nhà hàng..."
-              placeholderTextColor={T.color.placeholder}
-              value={replyText}
-              onChangeText={setReplyText}
-              style={styles.modalInput}
-            />
+            <View style={styles.modalBody}>
+              <Text style={styles.modalLabel}>Đánh giá của khách:</Text>
+              <Text style={styles.modalGuestComment} numberOfLines={3}>
+                "{selectedReview?.comment || 'Không có bình luận'}"
+              </Text>
+
+              <Text style={[styles.modalLabel, { marginTop: T.space.md }]}>Nội dung phản hồi:</Text>
+              <TextInput
+                placeholder="Nhập lời cảm ơn hoặc phản hồi của bạn..."
+                placeholderTextColor={T.color.placeholder}
+                value={replyText}
+                onChangeText={setReplyText}
+                multiline
+                numberOfLines={5}
+                style={styles.replyInput}
+              />
+            </View>
 
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setModalVisible(false)}>
-                <Text style={styles.modalCancelText}>Huỷ</Text>
+              <TouchableOpacity
+                style={styles.cancelBtnModal}
+                onPress={() => setReplyModalVisible(false)}
+              >
+                <Text style={styles.cancelBtnTextModal}>Huỷ</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSubmitBtn} onPress={handleSendReply}>
-                <Text style={styles.modalSubmitText}>Gửi phản hồi</Text>
+              <TouchableOpacity
+                style={styles.submitBtn}
+                disabled={submittingReply}
+                onPress={handleSaveReply}
+              >
+                {submittingReply ? (
+                  <ActivityIndicator color="#0C0F16" />
+                ) : (
+                  <Text style={styles.submitBtnText}>Gửi phản hồi</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -234,61 +285,94 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: T.space.xl,
-    paddingTop: T.space.lg,
+    paddingTop: T.space.md,
     paddingBottom: T.space['3xl'],
   },
-  overviewCard: {
+  summaryCard: {
     flexDirection: 'row',
     backgroundColor: T.color.card,
-    borderRadius: T.radius.lg,
+    borderRadius: T.radius.xl,
     padding: T.space.lg,
     borderWidth: 1,
     borderColor: T.color.border,
-    marginBottom: T.space.lg,
-    alignItems: 'center',
+    marginBottom: T.space.xl,
   },
-  scoreCol: {
-    alignItems: 'center',
+  avgSection: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  ratingScore: {
-    color: T.color.text1,
-    fontSize: 32,
-    fontWeight: '700',
+  avgNumber: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '800',
   },
   starsRow: {
     flexDirection: 'row',
-    marginVertical: 4,
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
   },
   reviewCountText: {
     color: T.color.text3,
     fontSize: 11,
+    marginTop: 6,
   },
-  divider: {
+  dividerVertical: {
     width: 1,
-    backgroundColor: T.color.border,
-    height: '80%',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     marginHorizontal: T.space.lg,
   },
-  infoCol: {
-    flex: 2,
+  progressSection: {
+    flex: 1.5,
+    justifyContent: 'center',
+    gap: 3,
   },
-  infoTitle: {
-    color: T.color.text1,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
+  progressBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  infoSubtitle: {
-    color: T.color.text2,
-    fontSize: 11,
-    lineHeight: 16,
+  starNumText: {
+    color: T.color.text3,
+    fontSize: 10.5,
+    width: 18,
+    textAlign: 'right',
+  },
+  progressBarBackground: {
+    flex: 1,
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#F59E0B',
+    borderRadius: 3,
+  },
+  progressBarValText: {
+    color: T.color.text3,
+    fontSize: 10.5,
+    width: 18,
+  },
+  reviewsList: {
+    gap: T.space.md,
+  },
+  emptyContainer: {
+    paddingVertical: T.space['4xl'],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    color: T.color.text3,
+    fontSize: 12.5,
+    textAlign: 'center',
   },
   card: {
     backgroundColor: T.color.card,
-    borderRadius: T.radius.lg,
+    borderRadius: T.radius.xl,
     padding: T.space.lg,
-    marginBottom: T.space.md,
     borderWidth: 1,
     borderColor: T.color.border,
   },
@@ -298,28 +382,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: T.space.md,
   },
-  reviewerName: {
-    color: T.color.text1,
-    fontSize: 14,
+  customerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.space.md,
+  },
+  avatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: T.color.elevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitial: {
+    color: T.color.primary,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  customerName: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
     fontWeight: '600',
   },
-  reviewDate: {
+  dateText: {
     color: T.color.text3,
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: 10,
+    marginLeft: 6,
   },
-  commentText: {
+  reviewComment: {
     color: T.color.text2,
     fontSize: 13,
     lineHeight: 18,
     marginBottom: T.space.md,
   },
   replyBox: {
-    backgroundColor: 'rgba(212, 150, 83, 0.04)',
-    borderRadius: T.radius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    borderLeftWidth: 2,
+    borderLeftColor: T.color.primary,
     padding: T.space.md,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 150, 83, 0.08)',
+    borderRadius: T.radius.sm,
     marginBottom: T.space.md,
   },
   replyBoxHeader: {
@@ -332,43 +434,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  replyContentText: {
-    color: T.color.text1,
+  replyContent: {
+    color: T.color.text2,
     fontSize: 12.5,
-    lineHeight: 18,
+    lineHeight: 17,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.04)',
+    paddingTop: T.space.sm,
   },
   replyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    height: 36,
-    backgroundColor: T.color.primary,
-    borderRadius: T.radius.sm,
-  },
-  replyBtnEdit: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderWidth: 1,
-    borderColor: T.color.border,
+    paddingVertical: 4,
   },
   replyBtnText: {
-    color: T.color.text1,
+    color: T.color.primary,
     fontSize: 12,
     fontWeight: '600',
-  },
-  replyBtnEditText: {
-    color: T.color.text2,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: T.space.xl,
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    width: '100%',
     backgroundColor: T.color.card,
-    borderRadius: T.radius.lg,
+    borderTopLeftRadius: T.radius.xl,
+    borderTopRightRadius: T.radius.xl,
     borderWidth: 1,
     borderColor: T.color.border,
     padding: T.space.lg,
@@ -380,64 +476,77 @@ const styles = StyleSheet.create({
     paddingBottom: T.space.md,
     borderBottomWidth: 1,
     borderBottomColor: T.color.border,
-    marginBottom: T.space.md,
+    marginBottom: T.space.lg,
   },
   modalTitle: {
     color: T.color.text1,
-    fontSize: 16,
+    fontSize: 15.5,
+    fontWeight: '700',
+  },
+  modalBody: {
+    gap: T.space.xs,
+  },
+  modalLabel: {
+    color: T.color.text3,
+    fontSize: 11.5,
     fontWeight: '600',
   },
-  modalInput: {
-    backgroundColor: T.color.bg,
-    color: T.color.text1,
+  modalGuestComment: {
+    color: T.color.text2,
+    fontSize: 13,
+    fontStyle: 'italic',
+    lineHeight: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    padding: T.space.md,
     borderRadius: T.radius.md,
     borderWidth: 1,
     borderColor: T.color.border,
-    padding: T.space.md,
-    fontSize: 13.5,
-    textAlignVertical: 'top',
+    marginTop: 4,
+  },
+  replyInput: {
+    backgroundColor: T.color.bg,
+    borderWidth: 1,
+    borderColor: T.color.border,
+    borderRadius: T.radius.md,
     height: 100,
-    marginBottom: T.space.lg,
+    paddingHorizontal: T.space.md,
+    paddingTop: T.space.md,
+    color: '#FFFFFF',
+    fontSize: 13,
+    textAlignVertical: 'top',
+    marginTop: 4,
   },
   modalActions: {
     flexDirection: 'row',
     gap: T.space.md,
+    marginTop: T.space.xl,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 0,
   },
-  modalCancelBtn: {
+  cancelBtnModal: {
     flex: 1,
-    height: 40,
+    height: 42,
     borderRadius: T.radius.sm,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: T.color.border,
   },
-  modalCancelText: {
+  cancelBtnTextModal: {
     color: T.color.text2,
     fontSize: 13,
     fontWeight: '600',
   },
-  modalSubmitBtn: {
-    flex: 1,
-    height: 40,
+  submitBtn: {
+    flex: 1.5,
+    height: 42,
     borderRadius: T.radius.sm,
     backgroundColor: T.color.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalSubmitText: {
-    color: T.color.text1,
+  submitBtnText: {
+    color: '#0C0F16',
     fontSize: 13,
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    paddingVertical: T.space['3xl'],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    color: T.color.text3,
-    fontSize: 13,
-    textAlign: 'center',
+    fontWeight: '700',
   },
 });

@@ -80,6 +80,9 @@ function RootLayoutNav() {
         <Stack.Screen name="owner/wallet/index" options={{ headerShown: false }} />
         <Stack.Screen name="owner/wallet/withdraw" options={{ headerShown: false }} />
         <Stack.Screen name="owner/wallet/bank" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/restaurant/create" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/restaurant/[id]/edit" options={{ headerShown: false }} />
+        <Stack.Screen name="owner/billing/index" options={{ headerShown: false }} />
         <Stack.Screen name="(admin)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>

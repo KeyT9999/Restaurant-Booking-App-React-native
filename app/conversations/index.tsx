@@ -1,8 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  StyleSheet, Text, View, FlatList,
-  Pressable, Image, ActivityIndicator,
-} from 'react-native';
+import { StyleSheet, Text, View, FlatList, Pressable, Image, ActivityIndicator, TextInput, RefreshControl, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { T } from '@/src/theme/tokens';
@@ -42,9 +39,12 @@ function timeAgo(dateStr: string): string {
 export default function ConversationsScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (showIndicator = true) => {
+    if (showIndicator) setLoading(true);
     try {
       const res = await chatApi.getConversations();
       setConversations(res?.data?.conversations || res?.data || []);
@@ -52,10 +52,23 @@ export default function ConversationsScreen() {
       console.warn('Lỗi tải hội thoại:', e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    load(false);
+  };
+
+  const filteredConversations = conversations.filter((c) => {
+    const name = c.restaurant?.name || 'Nhà hàng';
+    return name.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   const renderItem = ({ item }: { item: Conversation }) => {
     const name = item.restaurant?.name || 'Nhà hàng';
@@ -67,6 +80,7 @@ export default function ConversationsScreen() {
     return (
       <Pressable
         style={styles.convCard}
+        android_ripple={{ color: 'rgba(255,255,255,0.05)' }}
         onPress={() => router.push(`/chat/${item.restaurantId}`)}
       >
         {/* Avatar */}
@@ -118,6 +132,25 @@ export default function ConversationsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* Search bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <FontAwesome name="search" size={13} color={T.color.text3} style={{ marginRight: 8 }} />
+          <TextInput
+            placeholder="Tìm cuộc hội thoại..."
+            placeholderTextColor={T.color.placeholder}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchInput}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <FontAwesome name="times-circle" size={14} color={T.color.text3} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {loading ? (
         <View style={styles.skeletonWrapper}>
           {Array.from({ length: 5 }).map((_, i) => (
@@ -132,16 +165,19 @@ export default function ConversationsScreen() {
         </View>
       ) : (
         <FlatList
-          data={conversations}
+          data={filteredConversations}
           keyExtractor={(item, i) => item.id || String(i)}
           renderItem={renderItem}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={T.color.primary} />
+          }
           ListEmptyComponent={
             <EmptyState
               icon="comments-o"
               title="Chưa có tin nhắn"
-              description="Nhắn tin với nhà hàng yêu thích để đặt bàn hoặc hỏi thêm thông tin"
+              description="Tìm nhà hàng yêu thích để đặt bàn hoặc trao đổi trực tiếp"
             />
           }
         />
@@ -158,6 +194,28 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: T.color.border,
   },
   title: { color: T.color.text1 },
+  searchContainer: {
+    paddingVertical: T.space.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: T.color.border,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: T.color.card,
+    borderRadius: T.radius.md,
+    borderWidth: 1,
+    borderColor: T.color.border,
+    marginHorizontal: T.space.base,
+    paddingHorizontal: T.space.md,
+    height: 38,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    padding: 0,
+  },
   skeletonWrapper: { padding: T.space.base, gap: T.space.lg },
   skeletonRow: { flexDirection: 'row', gap: T.space.md, alignItems: 'center' },
   list: { paddingBottom: 32 },
@@ -172,7 +230,7 @@ const styles = StyleSheet.create({
     width: 52, height: 52, borderRadius: 26,
     backgroundColor: T.color.elevated, alignItems: 'center', justifyContent: 'center',
   },
-  avatarInitial: { color: T.color.primary, fontSize: 22, fontWeight: '700' },
+  avatarInitial: { color: T.color.primary, fontSize: 20, fontWeight: '700' },
   onlineDot: {
     position: 'absolute', bottom: 2, right: 2,
     width: 10, height: 10, borderRadius: 5,
@@ -181,7 +239,7 @@ const styles = StyleSheet.create({
   convContent: { flex: 1 },
   convHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   convName: { color: T.color.text2, fontSize: 14, fontWeight: '500', flex: 1 },
-  convNameBold: { color: T.color.text1, fontWeight: '700' },
+  convNameBold: { color: '#FFFFFF', fontWeight: '700' },
   convTime: { color: T.color.text3, fontSize: 11 },
   convPreview: { color: T.color.text3, fontSize: 13 },
   convPreviewBold: { color: T.color.text2, fontWeight: '600' },

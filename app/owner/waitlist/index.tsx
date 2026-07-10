@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
@@ -16,6 +16,7 @@ export default function OwnerWaitlistScreen() {
 
   const [waitlists, setWaitlists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'pending' | 'confirmed' | 'cancelled'>('pending');
 
   const fetchWaitlists = async (showLoading = true) => {
@@ -35,6 +36,7 @@ export default function OwnerWaitlistScreen() {
       showToast('Không thể tải danh sách hàng chờ', 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -43,17 +45,25 @@ export default function OwnerWaitlistScreen() {
     fetchWaitlists();
   }, [activeRestaurant, activeFilter]);
 
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchWaitlists(false);
+  };
+
   const handleNotifyGuest = (name: string) => {
-    // In a real system, this sends an SMS/App notification. Let's show a success feedback toast.
-    Alert.alert('Gọi khách hàng', `Hệ thống sẽ gửi thông báo SMS và thông báo ứng dụng tới khách hàng "${name}" để vào bàn ăn. Xác nhận gửi?`, [
-      { text: 'Huỷ', style: 'cancel' },
-      {
-        text: 'Gửi gọi khách',
-        onPress: () => {
-          showToast(`Đã gửi thông báo thành công tới khách hàng ${name}!`, 'success');
+    Alert.alert(
+      'Gọi khách hàng',
+      `Hệ thống sẽ gửi thông báo SMS và thông báo ứng dụng tới khách hàng "${name}" để chuẩn bị nhận bàn. Xác nhận gửi?`,
+      [
+        { text: 'Huỷ', style: 'cancel' },
+        {
+          text: 'Gửi gọi khách',
+          onPress: () => {
+            showToast(`Đã gửi thông báo thành công tới khách hàng ${name}!`, 'success');
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const handleCancelWaitlist = (id: string, name: string) => {
@@ -89,24 +99,16 @@ export default function OwnerWaitlistScreen() {
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={T.color.primary} />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <RestaurantHeader title="Hàng chờ (Waitlist)" showBack={true} />
+      <RestaurantHeader title="Quản lý hàng chờ" showBack={true} />
 
       {/* Status filter tabs */}
       <View style={styles.filterContainer}>
         {[
-          { key: 'pending', label: 'Đang đợi', count: waitlists.length && activeFilter === 'pending' ? waitlists.length : null },
-          { key: 'confirmed', label: 'Đã vào bàn', count: null },
-          { key: 'cancelled', label: 'Đã hủy', count: null },
+          { key: 'pending', label: 'Đang đợi' },
+          { key: 'confirmed', label: 'Đã giao bàn' },
+          { key: 'cancelled', label: 'Đã hủy' },
         ].map((tab) => (
           <TouchableOpacity
             key={tab.key}
@@ -115,106 +117,116 @@ export default function OwnerWaitlistScreen() {
           >
             <Text style={[styles.filterTabText, activeFilter === tab.key && styles.filterTabTextActive]}>
               {tab.label}
-              {tab.count !== null ? ` (${tab.count})` : ''}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {waitlists.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <FontAwesome name="hourglass-o" size={40} color={T.color.text3} style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyText}>
-              {activeFilter === 'pending'
-                ? 'Không có khách hàng nào đang trong hàng chờ'
-                : activeFilter === 'confirmed'
-                ? 'Chưa có lịch sử giao bàn từ hàng chờ'
-                : 'Chưa có hàng chờ nào bị hủy'}
-            </Text>
-          </View>
-        ) : (
-          waitlists.map((item, index) => {
-            const dateStr = item.preferredTime || new Date(item.preferredDateTime || item.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-            const waitTime = item.maxWaitMinutes ? `Chờ tối đa ${item.maxWaitMinutes} phút` : 'Đang chờ bàn';
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={T.color.primary} />
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={T.color.primary} />
+          }
+        >
+          {waitlists.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <FontAwesome name="hourglass-o" size={40} color={T.color.text3} style={{ marginBottom: 12 }} />
+              <Text style={styles.emptyText}>
+                {activeFilter === 'pending'
+                  ? 'Không có khách hàng nào đang trong hàng chờ'
+                  : activeFilter === 'confirmed'
+                  ? 'Chưa có lịch sử giao bàn từ hàng chờ'
+                  : 'Chưa có hàng chờ nào bị hủy'}
+              </Text>
+            </View>
+          ) : (
+            waitlists.map((item, index) => {
+              const nameStr = item.customerName || item.customer?.fullName || 'Khách ẩn danh';
+              const dateStr = item.preferredTime || new Date(item.preferredDateTime || item.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+              const waitTime = item.maxWaitMinutes ? `Chờ tối đa ${item.maxWaitMinutes} phút` : 'Đang chờ bàn';
 
-            return (
-              <View key={item._id || item.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.headerLeft}>
-                    <View style={styles.positionCircle}>
-                      <Text style={styles.positionText}>#{index + 1}</Text>
+              return (
+                <View key={item._id || item.id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.headerLeft}>
+                      <View style={styles.positionCircle}>
+                        <Text style={styles.positionText}>#{index + 1}</Text>
+                      </View>
+                      <View>
+                        <Text style={styles.guestName}>{nameStr}</Text>
+                        <Text style={styles.phoneText}>{item.customerPhone || item.customer?.phoneNumber || 'Không có SĐT'}</Text>
+                      </View>
                     </View>
-                    <View>
-                      <Text style={styles.guestName}>{item.customerName || item.customer?.fullName || 'Khách ẩn danh'}</Text>
-                      <Text style={styles.phoneText}>{item.customerPhone || item.customer?.phoneNumber || 'Không có SĐT'}</Text>
+
+                    <View style={styles.timeBadge}>
+                      <Text style={styles.timeBadgeText}>{dateStr}</Text>
                     </View>
                   </View>
 
-                  <View style={styles.timeBadge}>
-                    <Text style={styles.timeBadgeText}>{dateStr}</Text>
+                  {/* Details info */}
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailItem}>
+                      <FontAwesome name="users" size={12} color={T.color.text3} style={{ marginRight: 6 }} />
+                      <Text style={styles.detailValue}>{item.numberOfGuests} khách</Text>
+                    </View>
+                    <View style={styles.detailItem}>
+                      <FontAwesome name="clock-o" size={12} color={T.color.text3} style={{ marginRight: 6 }} />
+                      <Text style={styles.detailValue}>{waitTime}</Text>
+                    </View>
                   </View>
+
+                  {item.note ? (
+                    <View style={styles.noteBox}>
+                      <Text style={styles.noteText} numberOfLines={2}>
+                        Yêu cầu: {item.note}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {activeFilter === 'cancelled' && item.cancellationReason && (
+                    <View style={styles.cancelReasonBox}>
+                      <Text style={styles.cancelReasonText}>Lý do hủy: {item.cancellationReason}</Text>
+                    </View>
+                  )}
+
+                  {/* Action buttons */}
+                  {activeFilter === 'pending' && (
+                    <View style={styles.actions}>
+                      <TouchableOpacity
+                        style={styles.cancelBtn}
+                        onPress={() => handleCancelWaitlist(item._id || item.id, nameStr)}
+                      >
+                        <Text style={styles.cancelBtnText}>Hủy</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.notifyBtn}
+                        onPress={() => handleNotifyGuest(nameStr)}
+                      >
+                        <FontAwesome name="bell-o" size={12} color={T.color.primary} style={{ marginRight: 6 }} />
+                        <Text style={styles.notifyBtnText}>Gọi khách</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.assignBtn}
+                        onPress={() => router.push(`/owner/waitlist/assign?id=${item._id || item.id}` as any)}
+                      >
+                        <FontAwesome name="check" size={12} color="#0C0F16" style={{ marginRight: 6 }} />
+                        <Text style={styles.assignBtnText}>Giao bàn</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
-
-                {/* Details info */}
-                <View style={styles.detailRow}>
-                  <View style={styles.detailItem}>
-                    <FontAwesome name="users" size={12} color={T.color.text3} style={{ marginRight: 6 }} />
-                    <Text style={styles.detailValue}>{item.numberOfGuests} khách</Text>
-                  </View>
-                  <View style={styles.detailItem}>
-                    <FontAwesome name="clock-o" size={12} color={T.color.text3} style={{ marginRight: 6 }} />
-                    <Text style={styles.detailValue}>{waitTime}</Text>
-                  </View>
-                </View>
-
-                {item.note ? (
-                  <View style={styles.noteBox}>
-                    <Text style={styles.noteText} numberOfLines={2}>
-                      Yêu cầu: {item.note}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {/* Status history log if cancelled/confirmed */}
-                {activeFilter === 'cancelled' && item.cancellationReason && (
-                  <View style={styles.cancelReasonBox}>
-                    <Text style={styles.cancelReasonText}>Lý do hủy: {item.cancellationReason}</Text>
-                  </View>
-                )}
-
-                {/* Action buttons */}
-                {activeFilter === 'pending' && (
-                  <View style={styles.actions}>
-                    <TouchableOpacity
-                      style={styles.cancelBtn}
-                      onPress={() => handleCancelWaitlist(item._id || item.id, item.customerName || item.customer?.fullName || 'Khách')}
-                    >
-                      <Text style={styles.cancelBtnText}>Hủy</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.notifyBtn}
-                      onPress={() => handleNotifyGuest(item.customerName || item.customer?.fullName || 'Khách')}
-                    >
-                      <FontAwesome name="bell-o" size={12} color={T.color.primary} style={{ marginRight: 6 }} />
-                      <Text style={styles.notifyBtnText}>Gọi khách</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.assignBtn}
-                      onPress={() => router.push(`/owner/waitlist/assign?id=${item._id || item.id}` as any)}
-                    >
-                      <FontAwesome name="check" size={12} color={T.color.text1} style={{ marginRight: 6 }} />
-                      <Text style={styles.assignBtnText}>Giao bàn</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -233,7 +245,6 @@ const styles = StyleSheet.create({
   filterContainer: {
     flexDirection: 'row',
     paddingHorizontal: T.space.xl,
-    paddingTop: T.space.md,
     borderBottomWidth: 1,
     borderBottomColor: T.color.border,
     backgroundColor: T.color.bg,
@@ -251,31 +262,31 @@ const styles = StyleSheet.create({
   filterTabText: {
     color: T.color.text3,
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   filterTabTextActive: {
     color: T.color.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   scrollContent: {
     paddingHorizontal: T.space.xl,
-    paddingTop: T.space.lg,
+    paddingTop: T.space.md,
     paddingBottom: T.space['3xl'],
   },
   emptyContainer: {
-    paddingVertical: T.space['3xl'],
+    paddingVertical: T.space['4xl'],
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyText: {
     color: T.color.text3,
-    fontSize: 13,
+    fontSize: 12.5,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 18,
   },
   card: {
     backgroundColor: T.color.card,
-    borderRadius: T.radius.lg,
+    borderRadius: T.radius.xl,
     padding: T.space.lg,
     marginBottom: T.space.md,
     borderWidth: 1,
@@ -294,9 +305,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   positionCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: 'rgba(212, 150, 83, 0.08)',
     borderWidth: 1,
     borderColor: 'rgba(212, 150, 83, 0.15)',
@@ -305,17 +316,17 @@ const styles = StyleSheet.create({
   },
   positionText: {
     color: T.color.primary,
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
   },
   guestName: {
-    color: T.color.text1,
+    color: '#FFFFFF',
     fontSize: 14.5,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   phoneText: {
     color: T.color.text2,
-    fontSize: 12,
+    fontSize: 11.5,
     marginTop: 2,
   },
   timeBadge: {
@@ -342,7 +353,7 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     color: T.color.text2,
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '500',
   },
   noteBox: {
@@ -397,7 +408,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: T.radius.sm,
     borderWidth: 1,
-    borderColor: 'rgba(212, 150, 83, 0.2)',
+    borderColor: 'rgba(212, 150, 83, 0.25)',
   },
   notifyBtnText: {
     color: T.color.primary,
@@ -414,8 +425,8 @@ const styles = StyleSheet.create({
     borderRadius: T.radius.sm,
   },
   assignBtnText: {
-    color: T.color.text1,
+    color: '#0C0F16',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });
