@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, ActivityIndicator, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { waitlistApi } from '@/src/api/waitlist.api';
@@ -77,7 +77,10 @@ export default function JoinWaitlistScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.container}
+    >
       {/* Header */}
       <View style={styles.header}>
         <BackButton onPress={() => router.back()} style={styles.backBtn} />
@@ -200,7 +203,7 @@ export default function JoinWaitlistScreen() {
           style={styles.submitBtn}
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

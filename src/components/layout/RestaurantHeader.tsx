@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, SafeAreaView, Platform } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useRouter } from 'expo-router';
 import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
@@ -28,13 +28,14 @@ export const RestaurantHeader: React.FC<RestaurantHeaderProps> = ({ title, showB
   const hasMultiple = restaurants.length > 1;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        {showBack && (
-          <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
-            <FontAwesome name="chevron-left" size={16} color={T.color.text1} />
-          </TouchableOpacity>
-        )}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.headerRow}>
+          {showBack && (
+            <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
+              <FontAwesome name="chevron-left" size={16} color={T.color.text1} />
+            </TouchableOpacity>
+          )}
         <View style={styles.leftCol}>
           <Text style={[typography.bodySM, styles.titleText]}>{title}</Text>
           <TouchableOpacity
@@ -103,14 +104,18 @@ export const RestaurantHeader: React.FC<RestaurantHeaderProps> = ({ title, showB
           </View>
         </TouchableOpacity>
       </Modal>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    backgroundColor: T.color.bg,
+  },
   container: {
     paddingHorizontal: T.space.xl,
-    paddingTop: T.space.xl,
+    paddingTop: Platform.OS === 'ios' ? T.space.sm : T.space.lg,
     paddingBottom: T.space.md,
     borderBottomWidth: 1,
     borderBottomColor: T.color.border,

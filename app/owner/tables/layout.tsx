@@ -109,7 +109,7 @@ export default function TableLayoutScreen() {
 
               return (
                 <TouchableOpacity
-                  key={item._id}
+                  key={item.id || item._id}
                   style={[
                     styles.tableNode,
                     {
@@ -119,7 +119,7 @@ export default function TableLayoutScreen() {
                       backgroundColor: statusStyle.bg,
                     },
                   ]}
-                  onPress={() => router.push(`/owner/tables/form?id=${item._id}` as any)}
+                  onPress={() => router.push(`/owner/tables/form?id=${item.id || item._id}` as any)}
                 >
                   <Text style={[styles.tableNodeTitle, { color: statusStyle.text }]}>
                     {item.tableNumber}

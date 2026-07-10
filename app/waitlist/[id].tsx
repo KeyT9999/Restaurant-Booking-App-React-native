@@ -236,7 +236,7 @@ export default function WaitlistStatusScreen() {
             <Text style={styles.detailLabel}>Số điện thoại</Text>
             <Text style={styles.detailVal}>{waitlist.customerPhone}</Text>
           </View>
-          {waitlist.note && (
+          {!!waitlist.note && (
             <View style={styles.noteBox}>
               <Text style={styles.noteLabel}>Ghi chú:</Text>
               <Text style={styles.noteText}>{waitlist.note}</Text>

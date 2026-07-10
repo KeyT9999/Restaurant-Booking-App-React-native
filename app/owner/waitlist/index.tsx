@@ -188,7 +188,7 @@ export default function OwnerWaitlistScreen() {
                     </View>
                   ) : null}
 
-                  {activeFilter === 'cancelled' && item.cancellationReason && (
+                  {activeFilter === 'cancelled' && !!item.cancellationReason && (
                     <View style={styles.cancelReasonBox}>
                       <Text style={styles.cancelReasonText}>Lý do hủy: {item.cancellationReason}</Text>
                     </View>

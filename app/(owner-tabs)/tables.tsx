@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Switch, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Switch, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
@@ -45,7 +45,7 @@ export default function OwnerTablesScreen() {
     try {
       // Optimistic update
       setTables((prev) =>
-        prev.map((t) => (t._id === id ? { ...t, status: newStatus } : t))
+        prev.map((t) => ((t.id || t._id) === id ? { ...t, status: newStatus } : t))
       );
 
       const res = await ownerApi.updateTableStatus(id, newStatus);
@@ -57,14 +57,14 @@ export default function OwnerTablesScreen() {
       } else {
         // Revert
         setTables((prev) =>
-          prev.map((t) => (t._id === id ? { ...t, status: currentStatus } : t))
+          prev.map((t) => ((t.id || t._id) === id ? { ...t, status: currentStatus } : t))
         );
         showToast('Cập nhật trạng thái thất bại', 'error');
       }
     } catch (e: any) {
       // Revert
       setTables((prev) =>
-        prev.map((t) => (t._id === id ? { ...t, status: currentStatus } : t))
+        prev.map((t) => ((t.id || t._id) === id ? { ...t, status: currentStatus } : t))
       );
       showToast(e.response?.data?.message || 'Có lỗi xảy ra', 'error');
     }
@@ -132,7 +132,7 @@ export default function OwnerTablesScreen() {
       case 'maintenance':
         return 'Bảo trì';
       default:
-        return 'Không hoạt động';
+        return 'Ngưng';
     }
   };
 
@@ -187,20 +187,25 @@ export default function OwnerTablesScreen() {
             {filteredTables.map((item) => {
               const statusStyle = getStatusColor(item.status);
               const isActive = item.status !== 'inactive';
+              const tableId = item.id || item._id;
 
               return (
-                <View key={item._id} style={styles.card}>
+                <View key={tableId} style={styles.card}>
                   <View style={styles.cardHeader}>
                     <Text style={styles.tableNumber}>{item.tableNumber}</Text>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        { backgroundColor: statusStyle.bg },
-                      ]}
-                    >
-                      <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                        {getStatusLabel(item.status)}
-                      </Text>
+                    <View style={styles.actions}>
+                      <TouchableOpacity
+                        style={styles.actionBtn}
+                        onPress={() => router.push(`/owner/tables/form?id=${tableId}` as any)}
+                      >
+                        <FontAwesome name="pencil" size={11} color={T.color.text2} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.actionBtn}
+                        onPress={() => handleDeleteTable(tableId, item.tableNumber)}
+                      >
+                        <FontAwesome name="trash" size={11} color={T.color.error} />
+                      </TouchableOpacity>
                     </View>
                   </View>
 
@@ -215,30 +220,24 @@ export default function OwnerTablesScreen() {
                   <View style={styles.divider} />
 
                   <View style={styles.cardFooter}>
-                    <View style={styles.switchWrapper}>
-                      <Text style={styles.switchLabel}>Hoạt động</Text>
-                      <Switch
-                        value={isActive}
-                        onValueChange={() => handleToggleStatus(item._id, item.status)}
-                        trackColor={{ false: '#3A4255', true: 'rgba(16, 185, 129, 0.4)' }}
-                        thumbColor={isActive ? T.color.success : T.color.text3}
-                      />
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { backgroundColor: statusStyle.bg },
+                      ]}
+                    >
+                      <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                        {getStatusLabel(item.status)}
+                      </Text>
                     </View>
 
-                    <View style={styles.actions}>
-                      <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => router.push(`/owner/tables/form?id=${item._id}` as any)}
-                      >
-                        <FontAwesome name="pencil" size={12} color={T.color.text2} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => handleDeleteTable(item._id, item.tableNumber)}
-                      >
-                        <FontAwesome name="trash" size={12} color={T.color.error} />
-                      </TouchableOpacity>
-                    </View>
+                    <Switch
+                      value={isActive}
+                      onValueChange={() => handleToggleStatus(tableId, item.status)}
+                      trackColor={{ false: '#3A4255', true: 'rgba(16, 185, 129, 0.4)' }}
+                      thumbColor={isActive ? T.color.success : T.color.text3}
+                      style={{ transform: Platform.OS === 'ios' ? [{ scaleX: 0.75 }, { scaleY: 0.75 }] : undefined, marginRight: Platform.OS === 'ios' ? -6 : 0 }}
+                    />
                   </View>
                 </View>
               );
