@@ -74,13 +74,11 @@ export default function OwnerDashboard() {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
   };
 
-  // Safe stats values
   const totalRevenue = stats?.totalRevenue || 0;
   const totalBookings = stats?.totalBookings || 0;
   const completedBookings = stats?.completedBookings || 0;
   const pendingBookings = stats?.pendingBookings || 0;
 
-  // Render a bar chart using React Native SVG or simple Views
   const renderChart = () => {
     if (chartData.length === 0) {
       return (
@@ -97,13 +95,12 @@ export default function OwnerDashboard() {
         <View style={styles.chartBars}>
           {chartData.map((d: any, index: number) => {
             const heightPct = (d.deposits / maxVal) * 100;
-            // Shorten date format for XAxis (e.g. 2026-07-09 -> 09/07)
             const dateStr = d.date.split('-').slice(2, 3).concat(d.date.split('-').slice(1, 2)).join('/');
             return (
               <View key={index} style={styles.chartBarCol}>
                 <Text style={styles.barValueText}>{d.deposits > 0 ? `${(d.deposits / 1000).toFixed(0)}k` : '0'}</Text>
                 <View style={styles.barContainer}>
-                  <View style={[styles.barFill, { height: `${Math.max(heightPct, 5)}%` }]} />
+                  <View style={[styles.barFill, { height: `${Math.max(heightPct, 8)}%` }]} />
                 </View>
                 <Text style={styles.barLabelText}>{dateStr}</Text>
               </View>
@@ -126,7 +123,7 @@ export default function OwnerDashboard() {
 
   return (
     <View style={styles.container}>
-      <RestaurantHeader title="Dashboard" />
+      <RestaurantHeader title="Tổng quan" />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -134,28 +131,78 @@ export default function OwnerDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.color.primary} />
         }
       >
-        {/* Stat Cards Grid */}
+        {/* Active Restaurant Info Card */}
+        {activeRestaurant && (
+          <View style={styles.activeRestCard}>
+            <View style={styles.activeRestLeft}>
+              <FontAwesome name="cutlery" size={16} color={T.color.primary} />
+              <Text style={styles.activeRestName} numberOfLines={1}>{activeRestaurant.name}</Text>
+            </View>
+            <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(owner-tabs)/restaurants')}>
+              <Text style={styles.switchBtnText}>Đổi</Text>
+              <FontAwesome name="exchange" size={10} color={T.color.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Stats Grid */}
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>DOANH THU</Text>
-            <Text style={styles.statValue} numberOfLines={1}>{formatCurrency(totalRevenue)}</Text>
-            <View style={styles.statFooter}>
-              <FontAwesome name="line-chart" size={12} color={T.color.success} style={{ marginRight: 4 }} />
-              <Text style={styles.statFooterText}>Doanh thu từ cọc đặt bàn</Text>
+            <View style={styles.statCardHeader}>
+              <Text style={styles.statLabel}>DOANH THU</Text>
+              <View style={[styles.iconCirc, { backgroundColor: 'rgba(16, 185, 129, 0.08)' }]}>
+                <FontAwesome name="money" size={12} color={T.color.success} />
+              </View>
             </View>
+            <Text style={styles.statValue} numberOfLines={1}>{formatCurrency(totalRevenue)}</Text>
+            <Text style={styles.statFooterText}>Từ tiền cọc đặt bàn</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>ĐẶT BÀN</Text>
-            <Text style={styles.statValue}>{totalBookings}</Text>
-            <View style={styles.statFooter}>
-              <FontAwesome name="check-circle" size={12} color={T.color.primary} style={{ marginRight: 4 }} />
-              <Text style={styles.statFooterText}>{completedBookings} hoàn thành, {pendingBookings} chờ duyệt</Text>
+            <View style={styles.statCardHeader}>
+              <Text style={styles.statLabel}>ĐẶT BÀN</Text>
+              <View style={[styles.iconCirc, { backgroundColor: 'rgba(212, 150, 83, 0.08)' }]}>
+                <FontAwesome name="calendar" size={12} color={T.color.primary} />
+              </View>
             </View>
+            <Text style={styles.statValue}>{totalBookings}</Text>
+            <Text style={styles.statFooterText}>{completedBookings} xong • {pendingBookings} chờ</Text>
           </View>
         </View>
 
-        {/* Chart Card */}
+        {/* Quick Actions Grid */}
+        <Text style={styles.sectionTitleHeader}>Lối tắt quản lý</Text>
+        <View style={styles.quickActionsGrid}>
+          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/owner/waitlist')}>
+            <View style={[styles.actionIconWrapper, { backgroundColor: 'rgba(212, 150, 83, 0.08)' }]}>
+              <FontAwesome name="hourglass-half" size={16} color={T.color.primary} />
+            </View>
+            <Text style={styles.actionLabel}>Hàng chờ</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/owner/blocked-slots')}>
+            <View style={[styles.actionIconWrapper, { backgroundColor: 'rgba(244, 63, 94, 0.08)' }]}>
+              <FontAwesome name="lock" size={16} color={T.color.error} />
+            </View>
+            <Text style={styles.actionLabel}>Chặn giờ</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/owner/reviews')}>
+            <View style={[styles.actionIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.08)' }]}>
+              <FontAwesome name="star" size={16} color={T.color.success} />
+            </View>
+            <Text style={styles.actionLabel}>Đánh giá</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/owner/billing')}>
+            <View style={[styles.actionIconWrapper, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }]}>
+              <FontAwesome name="credit-card" size={16} color={T.color.text2} />
+            </View>
+            <Text style={styles.actionLabel}>Gói dịch vụ</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Revenue Chart */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Doanh thu đặt cọc tuần này</Text>
           {renderChart()}
@@ -163,7 +210,7 @@ export default function OwnerDashboard() {
 
         {/* Bookings Preview Header */}
         <View style={styles.sectionHeader}>
-          <Text style={[typography.bodyLG, styles.sectionTitle]}>Đặt bàn mới nhận</Text>
+          <Text style={[typography.bodyLG, styles.sectionTitle]}>Yêu cầu đặt bàn mới</Text>
           <TouchableOpacity onPress={() => router.push('/(owner-tabs)/bookings' as any)}>
             <Text style={styles.viewAllText}>Xem tất cả</Text>
           </TouchableOpacity>
@@ -173,6 +220,7 @@ export default function OwnerDashboard() {
         <View style={styles.bookingsList}>
           {latestBookings.length === 0 ? (
             <View style={styles.emptyBookings}>
+              <FontAwesome name="calendar-check-o" size={24} color={T.color.text3} style={{ marginBottom: 8 }} />
               <Text style={styles.emptyBookingsText}>Không có lịch đặt bàn mới nào</Text>
             </View>
           ) : (
@@ -185,7 +233,7 @@ export default function OwnerDashboard() {
                   style={styles.bookingRow}
                   onPress={() => router.push(`/owner/booking/${b.id}` as any)}
                 >
-                  <View style={styles.bookingLeft}>
+                  <View style={styles.bookingRowLeft}>
                     <View style={styles.timeBadge}>
                       <Text style={styles.timeText}>{b.bookingTime}</Text>
                     </View>
@@ -221,44 +269,126 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: T.space['3xl'],
   },
+  activeRestCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: T.color.card,
+    marginHorizontal: T.space.xl,
+    marginTop: T.space.md,
+    paddingHorizontal: T.space.lg,
+    paddingVertical: T.space.sm,
+    borderRadius: T.radius.md,
+    borderWidth: 1,
+    borderColor: T.color.border,
+  },
+  activeRestLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.space.sm,
+    flex: 1,
+  },
+  activeRestName: {
+    color: T.color.text1,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  switchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 150, 83, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  switchBtnText: {
+    color: T.color.primary,
+    fontSize: 10,
+    fontWeight: '700',
+  },
   statsGrid: {
     flexDirection: 'row',
     paddingHorizontal: T.space.xl,
-    paddingTop: T.space.lg,
+    paddingTop: T.space.md,
     gap: T.space.md,
   },
   statCard: {
     flex: 1,
     backgroundColor: T.color.card,
-    borderRadius: T.radius.lg,
+    borderRadius: T.radius.xl,
     padding: T.space.lg,
     borderWidth: 1,
     borderColor: T.color.border,
   },
+  statCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: T.space.sm,
+  },
+  iconCirc: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   statLabel: {
     color: T.color.text3,
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '700',
-    letterSpacing: 1.5,
-    marginBottom: 6,
+    letterSpacing: 1.2,
   },
   statValue: {
     color: T.color.text1,
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: T.space.sm,
-  },
-  statFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: T.space.xs,
   },
   statFooterText: {
-    color: T.color.text2,
+    color: T.color.text3,
     fontSize: 10,
+  },
+  sectionTitleHeader: {
+    color: '#FFFFFF',
+    fontSize: 14.5,
+    fontWeight: '700',
+    marginHorizontal: T.space.xl,
+    marginTop: T.space.xl,
+    marginBottom: T.space.sm,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    marginHorizontal: T.space.xl,
+    gap: T.space.sm,
+  },
+  actionItem: {
+    flex: 1,
+    backgroundColor: T.color.card,
+    borderWidth: 1,
+    borderColor: T.color.border,
+    borderRadius: T.radius.lg,
+    paddingVertical: T.space.md,
+    alignItems: 'center',
+  },
+  actionIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  actionLabel: {
+    color: T.color.text2,
+    fontSize: 11,
+    fontWeight: '600',
   },
   card: {
     backgroundColor: T.color.card,
-    borderRadius: T.radius.lg,
+    borderRadius: T.radius.xl,
     marginHorizontal: T.space.xl,
     marginTop: T.space.lg,
     padding: T.space.lg,
@@ -267,19 +397,19 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: T.color.text1,
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '600',
     marginBottom: T.space.lg,
   },
   chartWrapper: {
-    height: 140,
+    height: 120,
     justifyContent: 'flex-end',
   },
   chartBars: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    height: 110,
+    height: 90,
   },
   chartBarCol: {
     alignItems: 'center',
@@ -287,34 +417,34 @@ const styles = StyleSheet.create({
   },
   barValueText: {
     color: T.color.text3,
-    fontSize: 9,
+    fontSize: 8.5,
     marginBottom: 4,
   },
   barContainer: {
-    height: 70,
-    width: 14,
+    height: 55,
+    width: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 7,
+    borderRadius: 6,
     justifyContent: 'flex-end',
     overflow: 'hidden',
   },
   barFill: {
     backgroundColor: T.color.primary,
-    borderRadius: 7,
+    borderRadius: 6,
   },
   barLabelText: {
     color: T.color.text3,
-    fontSize: 9,
+    fontSize: 8.5,
     marginTop: 6,
   },
   emptyChart: {
-    height: 120,
+    height: 100,
     justifyContent: 'center',
     alignItems: 'center',
   },
   emptyChartText: {
     color: T.color.text3,
-    fontSize: 13,
+    fontSize: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -330,7 +460,7 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     color: T.color.primary,
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
   },
   bookingsList: {
@@ -347,14 +477,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: T.color.border,
   },
-  bookingLeft: {
+  bookingRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
   timeBadge: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: T.radius.md,
     backgroundColor: 'rgba(212, 150, 83, 0.08)',
     justifyContent: 'center',
@@ -363,7 +493,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     color: T.color.primary,
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
   },
   bookingMeta: {
@@ -371,12 +501,12 @@ const styles = StyleSheet.create({
   },
   customerName: {
     color: T.color.text1,
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '600',
   },
   bookingSubText: {
     color: T.color.text2,
-    fontSize: 12,
+    fontSize: 11.5,
     marginTop: 2,
   },
   statusBadge: {
@@ -385,7 +515,7 @@ const styles = StyleSheet.create({
     borderRadius: T.radius.sm,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
   },
   emptyBookings: {
@@ -398,6 +528,6 @@ const styles = StyleSheet.create({
   },
   emptyBookingsText: {
     color: T.color.text3,
-    fontSize: 13,
+    fontSize: 12.5,
   },
 });

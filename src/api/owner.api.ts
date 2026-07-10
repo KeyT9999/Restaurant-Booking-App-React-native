@@ -7,6 +7,21 @@ export const ownerApi = {
     return res.data;
   },
 
+  getMyRestaurantById: async (id: string): Promise<any> => {
+    const res = await apiClient.get(`/owner/restaurants/${id}`);
+    return res.data;
+  },
+
+  createRestaurant: async (data: any): Promise<any> => {
+    const res = await apiClient.post('/owner/restaurants', data);
+    return res.data;
+  },
+
+  updateRestaurant: async (id: string, data: any): Promise<any> => {
+    const res = await apiClient.put(`/owner/restaurants/${id}`, data);
+    return res.data;
+  },
+
   getRestaurantDashboard: async (restaurantId: string): Promise<any> => {
     const res = await apiClient.get(`/owner/restaurants/${restaurantId}/dashboard`);
     return res.data;
@@ -232,6 +247,18 @@ export const ownerApi = {
   },
   createWithdrawal: async (data: any): Promise<any> => {
     const res = await apiClient.post('/owner/withdrawals', data);
+    return res.data;
+  },
+  getCurrentSubscription: async (): Promise<any> => {
+    const res = await apiClient.get('/owner/billing/current-subscription');
+    return res.data;
+  },
+  getBillingPlans: async (): Promise<any> => {
+    const res = await apiClient.get('/owner/billing/plans');
+    return res.data;
+  },
+  checkoutSubscriptionPlan: async (planCode: string): Promise<any> => {
+    const res = await apiClient.post('/owner/billing/subscription/checkout', { planCode });
     return res.data;
   },
 };

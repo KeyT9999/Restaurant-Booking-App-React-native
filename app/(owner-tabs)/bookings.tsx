@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -19,6 +19,7 @@ export default function OwnerBookings() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week'>('all');
 
   const filters = [
     { key: 'all', label: 'Tất cả' },
@@ -28,14 +29,14 @@ export default function OwnerBookings() {
     { key: 'cancelled', label: 'Đã huỷ' },
   ];
 
-  const fetchBookings = async (showLoading = true) => {
+  const fetchBookings = useCallback(async (showLoading = true) => {
     if (!activeRestaurant?.id) return;
     if (showLoading) setLoading(true);
 
     try {
       const params: any = {
         page: 1,
-        limit: 50,
+        limit: 100,
       };
 
       if (activeFilter !== 'all') {
@@ -47,8 +48,23 @@ export default function OwnerBookings() {
       }
 
       const res = await ownerApi.getBookings(activeRestaurant.id, params);
-      if (res.success) {
-        setBookings(res.data.bookings || []);
+      if (res.success && res.data?.bookings) {
+        let fetchedBookings = res.data.bookings || [];
+
+        // Client-side date filtering for finer control
+        if (dateFilter === 'today') {
+          const todayStr = new Date().toISOString().split('T')[0];
+          fetchedBookings = fetchedBookings.filter((b: any) => b.bookingDate.startsWith(todayStr));
+        } else if (dateFilter === 'week') {
+          const now = Date.now();
+          const oneWeek = 7 * 24 * 3600 * 1000;
+          fetchedBookings = fetchedBookings.filter((b: any) => {
+            const bTime = new Date(b.bookingDate).getTime();
+            return Math.abs(now - bTime) <= oneWeek;
+          });
+        }
+
+        setBookings(fetchedBookings);
       }
     } catch (error) {
       console.error('Error fetching bookings:', error);
@@ -57,12 +73,11 @@ export default function OwnerBookings() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [activeRestaurant, activeFilter, searchQuery, dateFilter, showToast]);
 
   useEffect(() => {
-    setBookings([]);
     fetchBookings();
-  }, [activeRestaurant, activeFilter, searchQuery]);
+  }, [fetchBookings]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -133,14 +148,40 @@ export default function OwnerBookings() {
     }
   };
 
+  // Quick stats summary
+  const pendingCount = bookings.filter(b => b.status === 'pending').length;
+  const totalGuestsCount = bookings.reduce((sum, b) => sum + (b.numberOfGuests || 0), 0);
+
   return (
     <View style={styles.container}>
       <RestaurantHeader title="Đặt bàn" />
 
+      {/* Date Quick Filter Bar */}
+      <View style={styles.dateFilterContainer}>
+        <TouchableOpacity
+          style={[styles.dateFilterBtn, dateFilter === 'all' && styles.dateFilterBtnActive]}
+          onPress={() => setDateFilter('all')}
+        >
+          <Text style={[styles.dateFilterText, dateFilter === 'all' && styles.dateFilterTextActive]}>Tất cả ngày</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.dateFilterBtn, dateFilter === 'today' && styles.dateFilterBtnActive]}
+          onPress={() => setDateFilter('today')}
+        >
+          <Text style={[styles.dateFilterText, dateFilter === 'today' && styles.dateFilterTextActive]}>Hôm nay</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.dateFilterBtn, dateFilter === 'week' && styles.dateFilterBtnActive]}
+          onPress={() => setDateFilter('week')}
+        >
+          <Text style={[styles.dateFilterText, dateFilter === 'week' && styles.dateFilterTextActive]}>Tuần này</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Search and Filters */}
       <View style={styles.headerControls}>
         <View style={styles.searchBar}>
-          <FontAwesome name="search" size={14} color={T.color.text3} style={{ marginRight: 8 }} />
+          <FontAwesome name="search" size={13} color={T.color.text3} style={{ marginRight: 8 }} />
           <TextInput
             placeholder="Tìm theo tên hoặc số điện thoại..."
             placeholderTextColor={T.color.placeholder}
@@ -180,6 +221,19 @@ export default function OwnerBookings() {
         </View>
       </View>
 
+      {/* Summary Mini Row */}
+      <View style={styles.summaryMiniRow}>
+        <Text style={styles.summaryMiniText}>
+          Hiển thị <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{bookings.length}</Text> đặt bàn •{' '}
+          <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{totalGuestsCount}</Text> khách
+        </Text>
+        {pendingCount > 0 && (
+          <View style={styles.alertBadge}>
+            <Text style={styles.alertBadgeText}>{pendingCount} chờ duyệt</Text>
+          </View>
+        )}
+      </View>
+
       {/* List content */}
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -195,15 +249,23 @@ export default function OwnerBookings() {
           renderItem={({ item }) => {
             const statusStyle = getStatusStyle(item.status);
             const dateStr = new Date(item.bookingDate).toLocaleDateString('vi-VN');
+            const hasDeposit = item.depositAmount && item.depositAmount > 0;
+
             return (
               <TouchableOpacity
                 style={styles.card}
-                onPress={() => router.push(`/owner/booking/${item.id}` as any)}
+                onPress={() => router.push(`/owner/booking/${item.id}`)}
               >
                 <View style={styles.cardHeader}>
-                  <View>
-                    <Text style={styles.customerName}>{item.customerName}</Text>
-                    <Text style={styles.bookingId}>Mã: #{item.id.slice(-8).toUpperCase()} • {dateStr}</Text>
+                  <View style={styles.cardHeaderLeft}>
+                    {/* User Initials Badge */}
+                    <View style={styles.avatarFallback}>
+                      <Text style={styles.avatarInitial}>{item.customerName ? item.customerName[0].toUpperCase() : 'K'}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.customerName}>{item.customerName}</Text>
+                      <Text style={styles.bookingId}>Mã: #{item.id.slice(-8).toUpperCase()} • {dateStr}</Text>
+                    </View>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
                     <Text style={[styles.statusText, { color: statusStyle.text }]}>{statusStyle.label}</Text>
@@ -228,6 +290,18 @@ export default function OwnerBookings() {
                   </View>
                 </View>
 
+                {/* Extra badges (Deposit status) */}
+                {hasDeposit && (
+                  <View style={styles.extraBadgeRow}>
+                    <View style={styles.depositBadge}>
+                      <FontAwesome name="check-circle" size={10} color={T.color.success} style={{ marginRight: 4 }} />
+                      <Text style={styles.depositBadgeText}>
+                        Đã đặt cọc: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.depositAmount)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
                 {/* Inline Action Buttons for pending bookings */}
                 {item.status === 'pending' && (
                   <View style={styles.actionsRow}>
@@ -243,7 +317,7 @@ export default function OwnerBookings() {
                       onPress={() => handleConfirm(item.id, item.customerName)}
                     >
                       <FontAwesome name="check" size={12} color={T.color.success} style={{ marginRight: 6 }} />
-                      <Text style={styles.confirmBtnText}>Duyệt bàn</Text>
+                      <Text style={styles.confirmBtnText}>Duyệt đặt bàn</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -252,7 +326,7 @@ export default function OwnerBookings() {
           }}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <FontAwesome name="calendar-times-o" size={40} color={T.color.text3} style={{ marginBottom: 12 }} />
+              <FontAwesome name="calendar-times-o" size={36} color={T.color.text3} style={{ marginBottom: 12 }} />
               <Text style={styles.emptyText}>Không tìm thấy đơn đặt bàn nào</Text>
             </View>
           }
@@ -274,6 +348,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: T.color.bg,
   },
+  dateFilterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: T.space.xl,
+    paddingTop: T.space.md,
+    gap: T.space.sm,
+    backgroundColor: T.color.bg,
+  },
+  dateFilterBtn: {
+    flex: 1,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: T.radius.sm,
+    borderWidth: 1,
+    borderColor: T.color.border,
+    backgroundColor: T.color.card,
+  },
+  dateFilterBtnActive: {
+    borderColor: T.color.primary,
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+  },
+  dateFilterText: {
+    color: T.color.text2,
+    fontSize: 11.5,
+    fontWeight: '500',
+  },
+  dateFilterTextActive: {
+    color: T.color.primary,
+    fontWeight: '600',
+  },
   headerControls: {
     backgroundColor: T.color.bg,
     borderBottomWidth: 1,
@@ -289,13 +393,13 @@ const styles = StyleSheet.create({
     borderColor: T.color.border,
     marginHorizontal: T.space.xl,
     paddingHorizontal: T.space.md,
-    height: 40,
+    height: 38,
     marginBottom: T.space.sm,
   },
   searchInput: {
     flex: 1,
-    color: T.color.text1,
-    fontSize: 13,
+    color: '#FFFFFF',
+    fontSize: 12.5,
     padding: 0,
   },
   filtersScroll: {
@@ -307,7 +411,7 @@ const styles = StyleSheet.create({
   },
   filterBadge: {
     paddingHorizontal: T.space.base,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: T.radius.full,
     backgroundColor: T.color.card,
     borderWidth: 1,
@@ -319,12 +423,35 @@ const styles = StyleSheet.create({
   },
   filterText: {
     color: T.color.text2,
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '500',
   },
   filterTextActive: {
-    color: T.color.text1,
-    fontWeight: '600',
+    color: '#0C0F16',
+    fontWeight: '700',
+  },
+  summaryMiniRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: T.space.xl,
+    paddingTop: T.space.md,
+    paddingBottom: T.space.xs,
+  },
+  summaryMiniText: {
+    color: T.color.text3,
+    fontSize: 11.5,
+  },
+  alertBadge: {
+    backgroundColor: 'rgba(212, 150, 83, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  alertBadgeText: {
+    color: T.color.primary,
+    fontSize: 10,
+    fontWeight: '700',
   },
   listContent: {
     paddingHorizontal: T.space.xl,
@@ -333,7 +460,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: T.color.card,
-    borderRadius: T.radius.lg,
+    borderRadius: T.radius.xl,
     padding: T.space.lg,
     marginBottom: T.space.md,
     borderWidth: 1,
@@ -342,13 +469,32 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: T.space.md,
   },
-  customerName: {
-    color: T.color.text1,
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: T.space.md,
+    flex: 1,
+  },
+  avatarFallback: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: T.color.elevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitial: {
+    color: T.color.primary,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  customerName: {
+    color: '#FFFFFF',
+    fontSize: 14.5,
+    fontWeight: '700',
   },
   bookingId: {
     color: T.color.text3,
@@ -356,19 +502,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statusBadge: {
-    paddingVertical: 4,
+    paddingVertical: 3,
     paddingHorizontal: 8,
     borderRadius: T.radius.sm,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
   },
   detailsRow: {
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.04)',
     paddingTop: T.space.md,
+    marginBottom: T.space.sm,
   },
   detailCol: {
     flex: 1,
@@ -377,17 +524,36 @@ const styles = StyleSheet.create({
     color: T.color.text3,
     fontSize: 9,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     marginBottom: 4,
   },
   detailValue: {
-    color: T.color.text1,
-    fontSize: 13,
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  extraBadgeRow: {
+    flexDirection: 'row',
+    marginBottom: T.space.sm,
+  },
+  depositBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  depositBadgeText: {
+    color: T.color.success,
+    fontSize: 10.5,
     fontWeight: '600',
   },
   actionsRow: {
     flexDirection: 'row',
-    marginTop: T.space.md,
+    marginTop: T.space.xs,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.04)',
     paddingTop: T.space.md,
@@ -405,7 +571,7 @@ const styles = StyleSheet.create({
   },
   rejectBtnText: {
     color: T.color.error,
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
   },
   confirmBtn: {
@@ -415,22 +581,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: 32,
     borderRadius: T.radius.sm,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: 'rgba(16, 185, 129, 0.15)',
   },
   confirmBtnText: {
     color: T.color.success,
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
   },
   emptyContainer: {
-    paddingVertical: T.space['3xl'],
+    paddingVertical: T.space['4xl'],
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyText: {
     color: T.color.text3,
-    fontSize: 13,
+    fontSize: 12.5,
   },
 });

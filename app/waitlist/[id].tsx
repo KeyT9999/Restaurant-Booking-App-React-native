@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, Alert, Pressable } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, Alert, Pressable, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { waitlistApi } from '@/src/api/waitlist.api';
 import { T } from '@/src/theme/tokens';
@@ -129,12 +129,19 @@ export default function WaitlistStatusScreen() {
 
   return (
     <View style={styles.container}>
-      {/* ─── Header ─── */}
+      {/* Header */}
       <View style={styles.header}>
         <BackButton onPress={() => router.back()} style={styles.backBtn} />
         <View style={styles.headerTextWrapper}>
-          <Text style={[typography.titleSM, styles.title]} numberOfLines={1}>Thẻ hàng chờ</Text>
+          <Text style={[typography.titleMD, styles.title]} numberOfLines={1}>Thẻ hàng chờ</Text>
         </View>
+        {/* Chat with restaurant icon */}
+        <TouchableOpacity
+          style={styles.chatIconBtn}
+          onPress={() => router.push(`/chat/${waitlist.restaurantId}`)}
+        >
+          <FontAwesome name="comments-o" size={20} color={T.color.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -154,7 +161,7 @@ export default function WaitlistStatusScreen() {
           ) : isConfirmed ? (
             <>
               <View style={[styles.queueCircle, styles.queueCircleConfirmed]}>
-                <FontAwesome name="check" size={32} color="#0C0F16" />
+                <FontAwesome name="check" size={36} color="#0C0F16" />
               </View>
               <Text style={[styles.queueStatus, { color: T.color.success }]}>BÀN CỦA BẠN ĐÃ SẴN SÀNG! 🎉</Text>
               <Text style={styles.queueSub}>Quý khách vui lòng liên hệ nhân viên nhà hàng để nhận bàn.</Text>
@@ -162,13 +169,31 @@ export default function WaitlistStatusScreen() {
           ) : (
             <>
               <View style={[styles.queueCircle, styles.queueCircleCancelled]}>
-                <FontAwesome name="times" size={32} color="#FFFFFF" />
+                <FontAwesome name="times" size={36} color="#FFFFFF" />
               </View>
               <Text style={[styles.queueStatus, { color: T.color.text3 }]}>
                 {waitlist.status === 'cancelled' ? 'ĐÃ HỦY LƯỢT CHỜ ✗' : 'LƯỢT CHỜ ĐÃ HẾT HẠN ⌛'}
               </Text>
             </>
           )}
+        </View>
+
+        {/* Timeline Indicator */}
+        <View style={styles.timelineCard}>
+          <View style={styles.timelineStep}>
+            <View style={[styles.stepDot, { backgroundColor: T.color.success }]} />
+            <Text style={styles.stepTextActive}>1. Đã đăng ký</Text>
+          </View>
+          <View style={[styles.stepLine, { backgroundColor: isConfirmed || !isPending ? T.color.success : T.color.border }]} />
+          <View style={styles.timelineStep}>
+            <View style={[styles.stepDot, { backgroundColor: isConfirmed ? T.color.success : isPending ? T.color.primary : T.color.border }]} />
+            <Text style={isPending ? styles.stepTextActive : styles.stepText}>2. Đang đợi bàn</Text>
+          </View>
+          <View style={[styles.stepLine, { backgroundColor: isConfirmed ? T.color.success : T.color.border }]} />
+          <View style={styles.timelineStep}>
+            <View style={[styles.stepDot, { backgroundColor: isConfirmed ? T.color.success : T.color.border }]} />
+            <Text style={isConfirmed ? styles.stepTextActive : styles.stepText}>3. Vào bàn</Text>
+          </View>
         </View>
 
         {/* Ticket Details */}
@@ -255,17 +280,17 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: T.color.error,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: 56,
     paddingHorizontal: T.space.lg,
     paddingBottom: T.space.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.03)',
+    borderBottomColor: T.color.border,
   },
   backBtn: {
     marginRight: T.space.md,
@@ -277,20 +302,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
+  chatIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   scrollContent: {
     paddingBottom: 40,
   },
   positionWrapper: {
     alignItems: 'center',
-    marginVertical: 32,
+    marginVertical: 24,
   },
   queueCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
     borderWidth: 4,
     borderColor: T.color.primary,
-    backgroundColor: 'rgba(212, 150, 83, 0.05)',
+    backgroundColor: 'rgba(212, 150, 83, 0.04)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: T.color.primary,
@@ -309,18 +342,18 @@ const styles = StyleSheet.create({
   },
   queueLabel: {
     color: T.color.text3,
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '600',
   },
   queueNumber: {
     color: '#FFFFFF',
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     marginTop: 4,
   },
   queueStatus: {
     color: T.color.primary,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     marginTop: 16,
   },
@@ -329,9 +362,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  card: {
+  timelineCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: T.color.card,
     borderRadius: T.radius.lg,
+    borderWidth: 1,
+    borderColor: T.color.border,
+    padding: T.space.md,
+    marginHorizontal: T.space.lg,
+    marginBottom: T.space.lg,
+  },
+  timelineStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  stepText: {
+    color: T.color.text3,
+    fontSize: 10.5,
+    fontWeight: '500',
+  },
+  stepTextActive: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  stepLine: {
+    height: 2,
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  card: {
+    backgroundColor: T.color.card,
+    borderRadius: T.radius.xl,
     borderWidth: 1,
     borderColor: T.color.border,
     padding: T.space.lg,
@@ -340,7 +410,7 @@ const styles = StyleSheet.create({
   },
   cardSectionTitle: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
     marginBottom: T.space.md,
     borderBottomWidth: 1,
@@ -350,7 +420,7 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   detailLabel: {
     color: T.color.text3,

@@ -100,6 +100,13 @@ function OwnerTabContent() {
         }}
       />
       <Tabs.Screen
+        name="restaurants"
+        options={{
+          title: 'Nhà hàng',
+          tabBarIcon: ({ color }) => <TabBarIcon name="building" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Cài đặt',

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Switch, Modal, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Switch, Modal, Alert, RefreshControl } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
 import { ownerApi } from '@/src/api/owner.api';
@@ -14,6 +14,7 @@ export default function BlockedSlotsScreen() {
 
   const [slots, setSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Form state
   const [modalVisible, setModalVisible] = useState(false);
@@ -38,6 +39,7 @@ export default function BlockedSlotsScreen() {
       showToast('Không thể tải danh sách giờ chặn', 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -46,12 +48,17 @@ export default function BlockedSlotsScreen() {
     fetchSlots();
   }, [activeRestaurant]);
 
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchSlots(false);
+  };
+
   const handleDeleteSlot = (id: string, dateStr: string) => {
     if (!activeRestaurant?.id) return;
-    Alert.alert('Hủy chặn giờ', `Bạn có chắc chắn muốn hủy chặn giờ ngày ${dateStr} không?`, [
+    Alert.alert('Mở khóa khung giờ', `Bạn có chắc chắn muốn hủy chặn giờ ngày ${dateStr} không?`, [
       { text: 'Huỷ', style: 'cancel' },
       {
-        text: 'Hủy chặn',
+        text: 'Mở khóa',
         style: 'destructive',
         onPress: async () => {
           try {
@@ -60,7 +67,7 @@ export default function BlockedSlotsScreen() {
               showToast('Đã hủy chặn giờ thành công', 'success');
               fetchSlots(false);
             } else {
-              showToast(res.message || 'Hủy chặn thất bại', 'error');
+              showToast(res.message || 'Mở khóa thất bại', 'error');
             }
           } catch (e: any) {
             showToast(e.response?.data?.message || 'Có lỗi xảy ra', 'error');
@@ -110,7 +117,7 @@ export default function BlockedSlotsScreen() {
     try {
       const res = await ownerApi.createBlockedSlot(activeRestaurant.id, payload);
       if (res.success) {
-        showToast('Chặn khung giờ mới thành công!', 'success');
+        showToast('Khóa khung giờ thành công!', 'success');
         setModalVisible(false);
         // Clear form
         setDate('');
@@ -142,68 +149,69 @@ export default function BlockedSlotsScreen() {
     setModalVisible(true);
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={T.color.primary} />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <RestaurantHeader title="Khóa khung giờ" showBack={true} />
+      <RestaurantHeader title="Khóa khung giờ đặt" showBack={true} />
 
       {/* Add Slot Trigger */}
       <TouchableOpacity
         style={styles.addBtn}
         onPress={openModalWithDefaultDate}
       >
-        <FontAwesome name="lock" size={13} color={T.color.text1} style={{ marginRight: 8 }} />
+        <FontAwesome name="lock" size={13} color="#0C0F16" style={{ marginRight: 8 }} />
         <Text style={styles.addBtnText}>Khóa khung giờ mới</Text>
       </TouchableOpacity>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {slots.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <FontAwesome name="calendar-check-o" size={40} color={T.color.text3} style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyText}>Chưa có khung giờ nào bị chặn</Text>
-          </View>
-        ) : (
-          slots.map((item) => {
-            const formattedDate = new Date(item.date).toLocaleDateString('vi-VN');
-            const isFullDay = item.slotType === 'full_day';
-            const timeStr = isFullDay ? 'Cả ngày' : `${item.startTime} – ${item.endTime}`;
+      {loading && slots.length === 0 ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={T.color.primary} />
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={T.color.primary} />}
+        >
+          {slots.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <FontAwesome name="calendar-check-o" size={40} color={T.color.text3} style={{ marginBottom: 12 }} />
+              <Text style={styles.emptyText}>Chưa có khung giờ nào bị khóa chặn</Text>
+            </View>
+          ) : (
+            slots.map((item) => {
+              const formattedDate = new Date(item.date).toLocaleDateString('vi-VN');
+              const isFullDay = item.slotType === 'full_day';
+              const timeStr = isFullDay ? 'Cả ngày' : `${item.startTime} – ${item.endTime}`;
 
-            return (
-              <View key={item._id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.leftMeta}>
-                    <View style={styles.iconCircle}>
-                      <FontAwesome name="lock" size={14} color={T.color.error} />
+              return (
+                <View key={item._id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.leftMeta}>
+                      <View style={styles.iconCircle}>
+                        <FontAwesome name="lock" size={14} color={T.color.error} />
+                      </View>
+                      <View>
+                        <Text style={styles.cardDate}>{formattedDate}</Text>
+                        <Text style={styles.cardTime}>{timeStr}</Text>
+                      </View>
                     </View>
-                    <View>
-                      <Text style={styles.cardDate}>{formattedDate}</Text>
-                      <Text style={styles.cardTime}>{timeStr}</Text>
-                    </View>
+
+                    <TouchableOpacity
+                      style={styles.deleteBtn}
+                      onPress={() => handleDeleteSlot(item._id, formattedDate)}
+                    >
+                      <FontAwesome name="trash" size={14} color={T.color.text3} />
+                    </TouchableOpacity>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.deleteBtn}
-                    onPress={() => handleDeleteSlot(item._id, formattedDate)}
-                  >
-                    <FontAwesome name="trash" size={14} color={T.color.text3} />
-                  </TouchableOpacity>
+                  {item.reason ? (
+                    <Text style={styles.reasonText}>Lý do: {item.reason}</Text>
+                  ) : null}
                 </View>
-
-                {item.reason ? (
-                  <Text style={styles.reasonText}>Lý do: {item.reason}</Text>
-                ) : null}
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
 
       {/* Form Modal */}
       <Modal
@@ -215,7 +223,7 @@ export default function BlockedSlotsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Khóa khung giờ mới</Text>
+              <Text style={styles.modalTitle}>Khóa khung giờ đặt</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <FontAwesome name="times" size={18} color={T.color.text2} />
               </TouchableOpacity>
@@ -249,7 +257,7 @@ export default function BlockedSlotsScreen() {
               {slotType === 'time_range' && (
                 <View style={styles.timeInputsRow}>
                   <View style={[styles.inputGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>Giờ bắt đầu *</Text>
+                    <Text style={styles.label}>Giờ bắt đầu (HH:mm) *</Text>
                     <TextInput
                       placeholder="11:00"
                       placeholderTextColor={T.color.placeholder}
@@ -259,7 +267,7 @@ export default function BlockedSlotsScreen() {
                     />
                   </View>
                   <View style={[styles.inputGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>Giờ kết thúc *</Text>
+                    <Text style={styles.label}>Giờ kết thúc (HH:mm) *</Text>
                     <TextInput
                       placeholder="14:00"
                       placeholderTextColor={T.color.placeholder}
@@ -275,7 +283,7 @@ export default function BlockedSlotsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Lý do khóa</Text>
                 <TextInput
-                  placeholder="Ví dụ: Tổ chức sự kiện riêng, nghỉ lễ, sửa chữa bếp..."
+                  placeholder="Ví dụ: Tổ chức tiệc riêng, sửa chữa..."
                   placeholderTextColor={T.color.placeholder}
                   value={reason}
                   onChangeText={setReason}
@@ -297,7 +305,7 @@ export default function BlockedSlotsScreen() {
                 onPress={handleSaveSlot}
               >
                 {submitting ? (
-                  <ActivityIndicator color={T.color.text1} />
+                  <ActivityIndicator color="#0C0F16" />
                 ) : (
                   <Text style={styles.submitBtnText}>Xác nhận khóa</Text>
                 )}
@@ -333,9 +341,9 @@ const styles = StyleSheet.create({
     marginBottom: T.space.sm,
   },
   addBtnText: {
-    color: T.color.text1,
+    color: '#0C0F16',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   scrollContent: {
     paddingHorizontal: T.space.xl,
@@ -343,18 +351,18 @@ const styles = StyleSheet.create({
     paddingBottom: T.space['3xl'],
   },
   emptyContainer: {
-    paddingVertical: T.space['3xl'],
+    paddingVertical: T.space['4xl'],
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyText: {
     color: T.color.text3,
-    fontSize: 13,
+    fontSize: 12.5,
     textAlign: 'center',
   },
   card: {
     backgroundColor: T.color.card,
-    borderRadius: T.radius.lg,
+    borderRadius: T.radius.xl,
     padding: T.space.lg,
     marginBottom: T.space.md,
     borderWidth: 1,
@@ -379,7 +387,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardDate: {
-    color: T.color.text1,
+    color: '#FFFFFF',
     fontSize: 14.5,
     fontWeight: '600',
   },
@@ -398,7 +406,7 @@ const styles = StyleSheet.create({
   },
   reasonText: {
     color: T.color.text3,
-    fontSize: 12,
+    fontSize: 12.5,
     marginTop: T.space.md,
     fontStyle: 'italic',
   },
@@ -427,8 +435,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     color: T.color.text1,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15.5,
+    fontWeight: '700',
   },
   modalForm: {
     gap: T.space.md,
@@ -439,7 +447,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: T.color.text2,
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
   },
   input: {
@@ -447,10 +455,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: T.color.border,
     borderRadius: T.radius.md,
-    height: 44,
+    height: 42,
     paddingHorizontal: T.space.md,
-    color: T.color.text1,
-    fontSize: 13.5,
+    color: '#FFFFFF',
+    fontSize: 13,
   },
   switchRow: {
     flexDirection: 'row',
@@ -461,7 +469,7 @@ const styles = StyleSheet.create({
     borderColor: T.color.border,
     borderRadius: T.radius.md,
     paddingHorizontal: T.space.md,
-    height: 48,
+    height: 46,
   },
   timeInputsRow: {
     flexDirection: 'row',
@@ -474,7 +482,7 @@ const styles = StyleSheet.create({
   },
   cancelBtnModal: {
     flex: 1,
-    height: 44,
+    height: 42,
     borderRadius: T.radius.sm,
     justifyContent: 'center',
     alignItems: 'center',
@@ -483,20 +491,20 @@ const styles = StyleSheet.create({
   },
   cancelBtnTextModal: {
     color: T.color.text2,
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '600',
   },
   submitBtn: {
     flex: 1.5,
-    height: 44,
+    height: 42,
     borderRadius: T.radius.sm,
     backgroundColor: T.color.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   submitBtnText: {
-    color: T.color.text1,
-    fontSize: 13.5,
-    fontWeight: '600',
+    color: '#0C0F16',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

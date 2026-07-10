@@ -1,8 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  StyleSheet, Text, View, FlatList,
-  Pressable, ActivityIndicator,
-} from 'react-native';
+import { StyleSheet, Text, View, FlatList, Pressable, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { T } from '@/src/theme/tokens';
@@ -19,7 +16,7 @@ type WaitlistStatus = 'all' | 'pending' | 'confirmed' | 'cancelled' | 'expired';
 const STATUS_TABS: { label: string; value: WaitlistStatus }[] = [
   { label: 'Tất cả', value: 'all' },
   { label: 'Đang chờ', value: 'pending' },
-  { label: 'Được nhận', value: 'confirmed' },
+  { label: 'Sẵn sàng', value: 'confirmed' },
   { label: 'Đã hủy', value: 'cancelled' },
 ];
 
@@ -32,7 +29,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Đang xếp hàng',
-  confirmed: 'Bàn đã sẵn sàng',
+  confirmed: 'Bàn sẵn sàng',
   cancelled: 'Đã hủy',
   expired: 'Hết hạn',
 };
@@ -40,11 +37,12 @@ const STATUS_LABEL: Record<string, string> = {
 export default function MyWaitlistsScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [status, setStatus] = useState<WaitlistStatus>('all');
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (showIndicator = true) => {
+    if (showIndicator) setLoading(true);
     try {
       const res = await waitlistApi.getMyWaitlists({
         status: status === 'all' ? undefined : status,
@@ -55,10 +53,18 @@ export default function MyWaitlistsScreen() {
       console.warn('Lỗi tải danh sách chờ:', e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [status]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    load(false);
+  };
 
   const renderItem = ({ item }: { item: any }) => {
     const color = STATUS_COLOR[item.status] ?? T.color.text3;
@@ -66,6 +72,7 @@ export default function MyWaitlistsScreen() {
     return (
       <Pressable
         style={styles.card}
+        android_ripple={{ color: 'rgba(255,255,255,0.05)' }}
         onPress={() => router.push(`/waitlist/${item.id || item._id}`)}
       >
         <View style={[styles.statusBar, { backgroundColor: color }]} />
@@ -74,23 +81,23 @@ export default function MyWaitlistsScreen() {
             <Text style={styles.restName} numberOfLines={1}>
               {item.restaurant?.name || 'Nhà hàng'}
             </Text>
-            <View style={[styles.statusBadge, { backgroundColor: `${color}22` }]}>
+            <View style={[styles.statusBadge, { backgroundColor: `${color}15` }]}>
               <Text style={[styles.statusText, { color }]}>{label}</Text>
             </View>
           </View>
           <View style={styles.metaRow}>
-            <FontAwesome name="calendar-o" size={12} color={T.color.text3} />
+            <FontAwesome name="calendar-o" size={11} color={T.color.text3} />
             <Text style={styles.metaText}>{formatDate(item.preferredDate)} • {item.preferredTime}</Text>
           </View>
           <View style={styles.metaRow}>
-            <FontAwesome name="users" size={12} color={T.color.text3} />
+            <FontAwesome name="users" size={11} color={T.color.text3} />
             <Text style={styles.metaText}>{item.numberOfGuests} người</Text>
             {item.status === 'pending' && (
               <>
                 <Text style={styles.metaDot}>·</Text>
-                <FontAwesome name="clock-o" size={12} color={T.color.primary} />
+                <FontAwesome name="hourglass-half" size={11} color={T.color.primary} />
                 <Text style={[styles.metaText, { color: T.color.primary }]}>
-                  Vị trí #{item.queuePositionSnapshot}
+                  Số thứ tự #{item.queuePositionSnapshot}
                 </Text>
               </>
             )}
@@ -106,28 +113,29 @@ export default function MyWaitlistsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <BackButton onPress={() => router.back()} />
-        <Text style={[typography.titleMD, styles.title]}>Danh sách chờ</Text>
+        <Text style={[typography.titleMD, styles.title]}>Hàng chờ của tôi</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {/* Status Filter */}
-      <FlatList
-        horizontal
-        data={STATUS_TABS}
-        keyExtractor={(t) => t.value}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabList}
-        renderItem={({ item: tab }) => (
-          <Chip
-            key={tab.value}
-            label={tab.label}
-            active={status === tab.value}
-            onPress={() => setStatus(tab.value)}
-            sm
-            style={styles.tabChip}
-          />
-        )}
-      />
+      <View style={styles.tabContainer}>
+        <FlatList
+          horizontal
+          data={STATUS_TABS}
+          keyExtractor={(t) => t.value}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabList}
+          renderItem={({ item: tab }) => (
+            <Chip
+              key={tab.value}
+              label={tab.label}
+              active={status === tab.value}
+              onPress={() => setStatus(tab.value)}
+              sm
+            />
+          )}
+        />
+      </View>
 
       {/* List */}
       {loading ? (
@@ -143,11 +151,14 @@ export default function MyWaitlistsScreen() {
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={T.color.primary} />
+          }
           ListEmptyComponent={
             <EmptyState
               icon="clock-o"
-              title="Không có lượt chờ"
-              description="Bạn chưa đăng ký hàng chờ nào"
+              title="Không tìm thấy lượt chờ"
+              description="Bạn chưa đăng ký hàng chờ nào trong danh sách này"
             />
           }
         />
@@ -163,13 +174,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: T.space.base, paddingTop: 52, paddingBottom: T.space.md,
   },
   title: { color: T.color.text1 },
-  tabList: { paddingHorizontal: T.space.base, paddingBottom: T.space.md, gap: T.space.sm },
-  tabChip: {},
+  tabContainer: {
+    paddingBottom: T.space.sm,
+  },
+  tabList: { paddingHorizontal: T.space.base, gap: T.space.sm },
   skeletonWrapper: { paddingHorizontal: T.space.base },
   list: { padding: T.space.base, paddingTop: 0, paddingBottom: 32 },
   card: {
     flexDirection: 'row', backgroundColor: T.color.card,
-    borderRadius: T.radius.lg, marginBottom: T.space.md,
+    borderRadius: T.radius.xl, marginBottom: T.space.md,
     borderWidth: 1, borderColor: T.color.border, overflow: 'hidden',
     alignItems: 'center',
   },
@@ -178,11 +191,11 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  restName: { color: T.color.text1, fontSize: 14, fontWeight: '700', flex: 1, marginRight: 8 },
-  statusBadge: { borderRadius: T.radius.sm, paddingHorizontal: 8, paddingVertical: 3 },
-  statusText: { fontSize: 11, fontWeight: '700' },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  metaText: { color: T.color.text3, fontSize: 12 },
+  restName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', flex: 1, marginRight: 8 },
+  statusBadge: { borderRadius: T.radius.sm, paddingHorizontal: 8, paddingVertical: 2 },
+  statusText: { fontSize: 10, fontWeight: '700' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaText: { color: T.color.text2, fontSize: 12 },
   metaDot: { color: T.color.text3, fontSize: 12 },
   arrow: { marginRight: T.space.md },
 });
