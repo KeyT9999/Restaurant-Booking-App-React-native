@@ -23,6 +23,7 @@ interface Conversation {
     fullName: string;
     avatarUrl?: string;
   };
+  customerId?: any;
   lastMessage?: {
     content: string;
     createdAt: string;
@@ -74,16 +75,33 @@ export default function ConversationsScreen() {
     load(false);
   };
 
+  const getCustomerName = (c: Conversation) => {
+    if (!c) return 'Khách hàng';
+    const cust = c.customer || c.customerId;
+    if (cust && typeof cust === 'object') {
+      return cust.fullName || cust.username || cust.email || 'Khách hàng';
+    }
+    return 'Khách hàng';
+  };
+
+  const getCustomerAvatar = (c: Conversation) => {
+    const cust = c.customer || c.customerId;
+    if (cust && typeof cust === 'object') {
+      return cust.avatarUrl || '';
+    }
+    return '';
+  };
+
   const filteredConversations = conversations.filter((c) => {
     const name = isOwner
-      ? (c.customer?.fullName || 'Khách hàng')
+      ? getCustomerName(c)
       : (c.restaurant?.name || 'Nhà hàng');
     return name.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   const renderItem = ({ item }: { item: Conversation }) => {
-    const name = isOwner ? (item.customer?.fullName || 'Khách hàng') : (item.restaurant?.name || 'Nhà hàng');
-    const logo = isOwner ? item.customer?.avatarUrl : item.restaurant?.logo;
+    const name = isOwner ? getCustomerName(item) : (item.restaurant?.name || 'Nhà hàng');
+    const logo = isOwner ? getCustomerAvatar(item) : item.restaurant?.logo;
     const lastMsg = item.lastMessage?.content || 'Bắt đầu cuộc trò chuyện...';
     const time = item.updatedAt ? timeAgo(item.updatedAt) : '';
     const hasUnread = (item.unreadCount ?? 0) > 0;

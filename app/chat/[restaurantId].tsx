@@ -92,7 +92,26 @@ export default function ChatWithRestaurantScreen() {
 
         const msgRes = await chatApi.getMessages(queryConvId, { limit: 55 });
         if (msgRes.success && msgRes.data?.messages) {
-          setMessages(msgRes.data.messages);
+          const msgs = msgRes.data.messages;
+          setMessages(msgs);
+
+          // Find a message from the customer to extract their real name & avatar
+          const customerMsg = msgs.find(
+            (m: any) =>
+              m.senderRole === 'customer' &&
+              m.senderId &&
+              typeof m.senderId === 'object'
+          );
+          if (customerMsg) {
+            setRestaurantName(
+              customerMsg.senderId.fullName ||
+                customerMsg.senderId.username ||
+                'Khách hàng'
+            );
+            if (customerMsg.senderId.avatarUrl) {
+              setRestaurantLogo(customerMsg.senderId.avatarUrl);
+            }
+          }
         }
 
         await chatApi.markRead(queryConvId);
@@ -136,7 +155,27 @@ export default function ChatWithRestaurantScreen() {
       try {
         const msgRes = await chatApi.getMessages(conversationId, { limit: 55 });
         if (msgRes.success && msgRes.data?.messages) {
-          setMessages(msgRes.data.messages);
+          const msgs = msgRes.data.messages;
+          setMessages(msgs);
+
+          if (queryConvId) {
+            const customerMsg = msgs.find(
+              (m: any) =>
+                m.senderRole === 'customer' &&
+                m.senderId &&
+                typeof m.senderId === 'object'
+            );
+            if (customerMsg) {
+              setRestaurantName(
+                customerMsg.senderId.fullName ||
+                  customerMsg.senderId.username ||
+                  'Khách hàng'
+              );
+              if (customerMsg.senderId.avatarUrl) {
+                setRestaurantLogo(customerMsg.senderId.avatarUrl);
+              }
+            }
+          }
         }
       } catch (e) {}
     }, 4000);
