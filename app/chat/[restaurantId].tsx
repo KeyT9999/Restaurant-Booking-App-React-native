@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { chatApi } from '@/src/api/chat.api';
 import { restaurantApi } from '@/src/api/restaurant.api';
+import { ownerApi } from '@/src/api/owner.api';
 import { T } from '@/src/theme/tokens';
 import { typography } from '@/src/theme/typography';
 import { BackButton } from '@/src/components/ui/BackButton';
@@ -79,10 +80,14 @@ export default function ChatWithRestaurantScreen() {
         setRestaurantName(queryCustomerName || 'Khách hàng');
         setRestaurantLogo(queryCustomerAvatar || null);
 
-        // Still fetch restaurant info to display "Chatting as Restaurant"
-        const restRes = await restaurantApi.getById(restaurantId);
-        if (restRes.success && restRes.data) {
-          setOwnRestaurantName(restRes.data.name || '');
+        // Fetch own restaurant details via owner API
+        try {
+          const restRes = await ownerApi.getMyRestaurantById(restaurantId);
+          if (restRes.success && restRes.data) {
+            setOwnRestaurantName(restRes.data.name || '');
+          }
+        } catch (err) {
+          console.warn('Lỗi lấy thông tin nhà hàng qua Owner API:', err);
         }
 
         const msgRes = await chatApi.getMessages(queryConvId, { limit: 55 });
