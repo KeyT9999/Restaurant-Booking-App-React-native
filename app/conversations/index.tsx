@@ -114,6 +114,7 @@ export default function ConversationsScreen() {
         router.push({
           pathname: `/chat/${item.restaurantId}`,
           params: {
+            restaurantId: item.restaurantId,
             conversationId: item.id,
             customerName: name,
             customerAvatar: logo || '',

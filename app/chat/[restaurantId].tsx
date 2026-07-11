@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Image } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
 import { chatApi } from '@/src/api/chat.api';
 import { restaurantApi } from '@/src/api/restaurant.api';
 import { ownerApi } from '@/src/api/owner.api';
@@ -62,7 +63,9 @@ export default function ChatWithRestaurantScreen() {
   }>();
   const scrollViewRef = useRef<ScrollView>(null);
 
+  const { activeRestaurant } = useOwnerRestaurant();
   const isOwner = user?.role === 'restaurant_owner';
+  const actualRestaurantId = (restaurantId && restaurantId !== 'undefined') ? restaurantId : (activeRestaurant?.id || '');
 
   const [loading, setLoading] = useState(true);
   const [restaurantName, setRestaurantName] = useState('Nhà hàng');
@@ -74,7 +77,7 @@ export default function ChatWithRestaurantScreen() {
   const [sending, setSending] = useState(false);
 
   const initChat = useCallback(async () => {
-    if (!restaurantId || !isAuthenticated) return;
+    if (!actualRestaurantId || !isAuthenticated) return;
     try {
       if (queryConvId) {
         setConversationId(queryConvId);
@@ -83,7 +86,7 @@ export default function ChatWithRestaurantScreen() {
 
         // Fetch own restaurant details via owner API
         try {
-          const restRes = await ownerApi.getMyRestaurantById(restaurantId);
+          const restRes = await ownerApi.getMyRestaurantById(actualRestaurantId);
           if (restRes.success && restRes.data) {
             setOwnRestaurantName(restRes.data.name || '');
           }
@@ -117,13 +120,13 @@ export default function ChatWithRestaurantScreen() {
 
         await chatApi.markRead(queryConvId);
       } else {
-        const restRes = await restaurantApi.getById(restaurantId);
+        const restRes = await restaurantApi.getById(actualRestaurantId);
         if (restRes.success && restRes.data) {
           setRestaurantName(restRes.data.name || 'Nhà hàng');
           setRestaurantLogo(restRes.data.logo || null);
         }
 
-        const convRes = await chatApi.createConversation(restaurantId);
+        const convRes = await chatApi.createConversation(actualRestaurantId);
         if (convRes.success && convRes.data) {
           const conv = convRes.data;
           setConversationId(conv.id);
