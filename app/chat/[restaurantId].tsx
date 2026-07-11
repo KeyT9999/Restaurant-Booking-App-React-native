@@ -14,7 +14,8 @@ import { FontAwesome } from '@expo/vector-icons';
 
 interface Message {
   id: string;
-  senderId: string;
+  sender?: string | { id?: string; _id?: string; fullName?: string; username?: string; avatarUrl?: string };
+  senderId?: string;
   senderRole: 'customer' | 'restaurant_owner' | 'admin' | string;
   content: string;
   createdAt: string;
@@ -99,17 +100,17 @@ export default function ChatWithRestaurantScreen() {
           const customerMsg = msgs.find(
             (m: any) =>
               m.senderRole === 'customer' &&
-              m.senderId &&
-              typeof m.senderId === 'object'
+              m.sender &&
+              typeof m.sender === 'object'
           );
-          if (customerMsg) {
+          if (customerMsg && typeof customerMsg.sender === 'object') {
             setRestaurantName(
-              customerMsg.senderId.fullName ||
-                customerMsg.senderId.username ||
+              customerMsg.sender.fullName ||
+                customerMsg.sender.username ||
                 'Khách hàng'
             );
-            if (customerMsg.senderId.avatarUrl) {
-              setRestaurantLogo(customerMsg.senderId.avatarUrl);
+            if (customerMsg.sender.avatarUrl) {
+              setRestaurantLogo(customerMsg.sender.avatarUrl);
             }
           }
         }
@@ -162,17 +163,17 @@ export default function ChatWithRestaurantScreen() {
             const customerMsg = msgs.find(
               (m: any) =>
                 m.senderRole === 'customer' &&
-                m.senderId &&
-                typeof m.senderId === 'object'
+                m.sender &&
+                typeof m.sender === 'object'
             );
-            if (customerMsg) {
+            if (customerMsg && typeof customerMsg.sender === 'object') {
               setRestaurantName(
-                customerMsg.senderId.fullName ||
-                  customerMsg.senderId.username ||
+                customerMsg.sender.fullName ||
+                  customerMsg.sender.username ||
                   'Khách hàng'
               );
-              if (customerMsg.senderId.avatarUrl) {
-                setRestaurantLogo(customerMsg.senderId.avatarUrl);
+              if (customerMsg.sender.avatarUrl) {
+                setRestaurantLogo(customerMsg.sender.avatarUrl);
               }
             }
           }
@@ -283,7 +284,9 @@ export default function ChatWithRestaurantScreen() {
         contentContainerStyle={styles.chatContent}
       >
         {messages.map((item, idx) => {
-          const isMe = item.senderId === user?.id;
+          const s = item.sender || item.senderId;
+          const messageSenderId = s ? (typeof s === 'string' ? s : (s.id || s._id || '')) : '';
+          const isMe = !!(messageSenderId && user?.id && messageSenderId === user.id);
           
           // Date Separator logic
           const currentDateStr = new Date(item.createdAt).toDateString();
