@@ -60,9 +60,12 @@ export default function ChatWithRestaurantScreen() {
   }>();
   const scrollViewRef = useRef<ScrollView>(null);
 
+  const isOwner = user?.role === 'restaurant_owner';
+
   const [loading, setLoading] = useState(true);
   const [restaurantName, setRestaurantName] = useState('Nhà hàng');
   const [restaurantLogo, setRestaurantLogo] = useState<string | null>(null);
+  const [ownRestaurantName, setOwnRestaurantName] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMsg, setInputMsg] = useState('');
@@ -75,6 +78,12 @@ export default function ChatWithRestaurantScreen() {
         setConversationId(queryConvId);
         setRestaurantName(queryCustomerName || 'Khách hàng');
         setRestaurantLogo(queryCustomerAvatar || null);
+
+        // Still fetch restaurant info to display "Chatting as Restaurant"
+        const restRes = await restaurantApi.getById(restaurantId);
+        if (restRes.success && restRes.data) {
+          setOwnRestaurantName(restRes.data.name || '');
+        }
 
         const msgRes = await chatApi.getMessages(queryConvId, { limit: 55 });
         if (msgRes.success && msgRes.data?.messages) {
@@ -146,7 +155,7 @@ export default function ChatWithRestaurantScreen() {
     const optimisticMsg: Message = {
       id: tempId,
       senderId: user?.id || '',
-      senderRole: 'customer',
+      senderRole: isOwner ? 'restaurant' : 'customer',
       content,
       createdAt: new Date().toISOString(),
     };
@@ -205,10 +214,22 @@ export default function ChatWithRestaurantScreen() {
         <View style={styles.headerTextWrapper}>
           <Text style={[typography.titleSM, styles.title]} numberOfLines={1}>{restaurantName}</Text>
           <View style={styles.statusRow}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Trực tuyến</Text>
+            {isOwner ? (
+              <Text style={styles.statusText}>Khách hàng</Text>
+            ) : (
+              <>
+                <View style={styles.statusDot} />
+                <Text style={styles.statusText}>Trực tuyến</Text>
+              </>
+            )}
           </View>
         </View>
+
+        {isOwner && ownRestaurantName ? (
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleText} numberOfLines={1}>Tư cách: {ownRestaurantName}</Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Messages */}
@@ -218,7 +239,7 @@ export default function ChatWithRestaurantScreen() {
         contentContainerStyle={styles.chatContent}
       >
         {messages.map((item, idx) => {
-          const isUser = item.senderRole === 'customer';
+          const isMe = item.senderId === user?.id;
           
           // Date Separator logic
           const currentDateStr = new Date(item.createdAt).toDateString();
@@ -233,10 +254,10 @@ export default function ChatWithRestaurantScreen() {
                 </View>
               )}
 
-              <View style={[styles.messageRow, isUser ? styles.userRow : styles.restaurantRow]}>
-                <View style={[styles.bubble, isUser ? styles.userBubble : styles.restaurantBubble]}>
-                  <Text style={[styles.messageText, isUser ? styles.userMessageText : styles.restMessageText]}>{item.content}</Text>
-                  <Text style={[styles.timeText, isUser ? styles.userTimeText : styles.restaurantTimeText]}>
+              <View style={[styles.messageRow, isMe ? styles.userRow : styles.restaurantRow]}>
+                <View style={[styles.bubble, isMe ? styles.userBubble : styles.restaurantBubble]}>
+                  <Text style={[styles.messageText, isMe ? styles.userMessageText : styles.restMessageText]}>{item.content}</Text>
+                  <Text style={[styles.timeText, isMe ? styles.userTimeText : styles.restaurantTimeText]}>
                     {formatMessageTime(item.createdAt)}
                   </Text>
                 </View>
@@ -333,6 +354,20 @@ const styles = StyleSheet.create({
   statusText: {
     color: T.color.text3,
     fontSize: 10,
+  },
+  roleBadge: {
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 150, 83, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: T.radius.sm,
+    maxWidth: '45%',
+  },
+  roleText: {
+    color: T.color.primary,
+    fontSize: 10,
+    fontWeight: '600',
   },
   chatContent: {
     padding: T.space.lg,
