@@ -2,8 +2,10 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Image } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
 import { chatApi } from '@/src/api/chat.api';
 import { restaurantApi } from '@/src/api/restaurant.api';
+import { ownerApi } from '@/src/api/owner.api';
 import { T } from '@/src/theme/tokens';
 import { typography } from '@/src/theme/typography';
 import { BackButton } from '@/src/components/ui/BackButton';
@@ -13,7 +15,8 @@ import { FontAwesome } from '@expo/vector-icons';
 
 interface Message {
   id: string;
-  senderId: string;
+  sender?: string | { id?: string; _id?: string; fullName?: string; username?: string; avatarUrl?: string };
+  senderId?: string;
   senderRole: 'customer' | 'restaurant_owner' | 'admin' | string;
   content: string;
   createdAt: string;
@@ -52,45 +55,97 @@ export default function ChatWithRestaurantScreen() {
   const router = useRouter();
   const { showToast } = useToast();
   const { user, isAuthenticated } = useAuth();
-  const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
+  const { restaurantId, conversationId: queryConvId, customerName: queryCustomerName, customerAvatar: queryCustomerAvatar } = useLocalSearchParams<{
+    restaurantId: string;
+    conversationId?: string;
+    customerName?: string;
+    customerAvatar?: string;
+  }>();
   const scrollViewRef = useRef<ScrollView>(null);
+
+  const { activeRestaurant } = useOwnerRestaurant();
+  const isOwner = user?.role === 'restaurant_owner';
+  const actualRestaurantId = (restaurantId && restaurantId !== 'undefined') ? restaurantId : (activeRestaurant?.id || '');
 
   const [loading, setLoading] = useState(true);
   const [restaurantName, setRestaurantName] = useState('Nhà hàng');
   const [restaurantLogo, setRestaurantLogo] = useState<string | null>(null);
+  const [ownRestaurantName, setOwnRestaurantName] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMsg, setInputMsg] = useState('');
   const [sending, setSending] = useState(false);
 
   const initChat = useCallback(async () => {
-    if (!restaurantId || !isAuthenticated) return;
+    if (!actualRestaurantId || !isAuthenticated) return;
     try {
-      const restRes = await restaurantApi.getById(restaurantId);
-      if (restRes.success && restRes.data) {
-        setRestaurantName(restRes.data.name || 'Nhà hàng');
-        setRestaurantLogo(restRes.data.logo || null);
-      }
+      if (queryConvId) {
+        setConversationId(queryConvId);
+        setRestaurantName(queryCustomerName || 'Khách hàng');
+        setRestaurantLogo(queryCustomerAvatar || null);
 
-      const convRes = await chatApi.createConversation(restaurantId);
-      if (convRes.success && convRes.data) {
-        const conv = convRes.data;
-        setConversationId(conv.id);
-
-        const msgRes = await chatApi.getMessages(conv.id, { limit: 55 });
-        if (msgRes.success && msgRes.data?.messages) {
-          setMessages(msgRes.data.messages);
+        // Fetch own restaurant details via owner API
+        try {
+          const restRes = await ownerApi.getMyRestaurantById(actualRestaurantId);
+          if (restRes.success && restRes.data) {
+            setOwnRestaurantName(restRes.data.name || '');
+          }
+        } catch (err) {
+          console.warn('Lỗi lấy thông tin nhà hàng qua Owner API:', err);
         }
 
-        await chatApi.markRead(conv.id);
+        const msgRes = await chatApi.getMessages(queryConvId, { limit: 55 });
+        if (msgRes.success && msgRes.data?.messages) {
+          const msgs = msgRes.data.messages;
+          setMessages(msgs);
+
+          // Find a message from the customer to extract their real name & avatar
+          const customerMsg = msgs.find(
+            (m: any) =>
+              m.senderRole === 'customer' &&
+              m.sender &&
+              typeof m.sender === 'object'
+          );
+          if (customerMsg && typeof customerMsg.sender === 'object') {
+            setRestaurantName(
+              customerMsg.sender.fullName ||
+                customerMsg.sender.username ||
+                'Khách hàng'
+            );
+            if (customerMsg.sender.avatarUrl) {
+              setRestaurantLogo(customerMsg.sender.avatarUrl);
+            }
+          }
+        }
+
+        await chatApi.markRead(queryConvId);
+      } else {
+        const restRes = await restaurantApi.getById(actualRestaurantId);
+        if (restRes.success && restRes.data) {
+          setRestaurantName(restRes.data.name || 'Nhà hàng');
+          setRestaurantLogo(restRes.data.logo || null);
+        }
+
+        const convRes = await chatApi.createConversation(actualRestaurantId);
+        if (convRes.success && convRes.data) {
+          const conv = convRes.data;
+          setConversationId(conv.id);
+
+          const msgRes = await chatApi.getMessages(conv.id, { limit: 55 });
+          if (msgRes.success && msgRes.data?.messages) {
+            setMessages(msgRes.data.messages);
+          }
+
+          await chatApi.markRead(conv.id);
+        }
       }
     } catch (error) {
       console.warn('Lỗi khởi tạo cuộc trò chuyện:', error);
-      showToast('Không thể kết nối trò chuyện với nhà hàng', 'error');
+      showToast('Không thể kết nối trò chuyện', 'error');
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, isAuthenticated, showToast]);
+  }, [restaurantId, queryConvId, queryCustomerName, queryCustomerAvatar, isAuthenticated, showToast]);
 
   useEffect(() => {
     initChat();
@@ -104,7 +159,27 @@ export default function ChatWithRestaurantScreen() {
       try {
         const msgRes = await chatApi.getMessages(conversationId, { limit: 55 });
         if (msgRes.success && msgRes.data?.messages) {
-          setMessages(msgRes.data.messages);
+          const msgs = msgRes.data.messages;
+          setMessages(msgs);
+
+          if (queryConvId) {
+            const customerMsg = msgs.find(
+              (m: any) =>
+                m.senderRole === 'customer' &&
+                m.sender &&
+                typeof m.sender === 'object'
+            );
+            if (customerMsg && typeof customerMsg.sender === 'object') {
+              setRestaurantName(
+                customerMsg.sender.fullName ||
+                  customerMsg.sender.username ||
+                  'Khách hàng'
+              );
+              if (customerMsg.sender.avatarUrl) {
+                setRestaurantLogo(customerMsg.sender.avatarUrl);
+              }
+            }
+          }
         }
       } catch (e) {}
     }, 4000);
@@ -128,7 +203,7 @@ export default function ChatWithRestaurantScreen() {
     const optimisticMsg: Message = {
       id: tempId,
       senderId: user?.id || '',
-      senderRole: 'customer',
+      senderRole: isOwner ? 'restaurant' : 'customer',
       content,
       createdAt: new Date().toISOString(),
     };
@@ -187,11 +262,32 @@ export default function ChatWithRestaurantScreen() {
         <View style={styles.headerTextWrapper}>
           <Text style={[typography.titleSM, styles.title]} numberOfLines={1}>{restaurantName}</Text>
           <View style={styles.statusRow}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Trực tuyến</Text>
+            {isOwner ? (
+              <Text style={styles.statusText}>Khách hàng</Text>
+            ) : (
+              <>
+                <View style={styles.statusDot} />
+                <Text style={styles.statusText}>Trực tuyến</Text>
+              </>
+            )}
           </View>
         </View>
+
+        {isOwner && ownRestaurantName ? (
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleText} numberOfLines={1}>Tư cách: {ownRestaurantName}</Text>
+          </View>
+        ) : null}
       </View>
+
+      {isOwner && ownRestaurantName ? (
+        <View style={styles.infoBanner}>
+          <FontAwesome name="building" size={12} color={T.color.primary} />
+          <Text style={styles.infoBannerText}>
+            Bạn đang trò chuyện với tư cách: <Text style={{ fontWeight: '700', color: '#FFFFFF' }}>{ownRestaurantName}</Text>
+          </Text>
+        </View>
+      ) : null}
 
       {/* Messages */}
       <ScrollView
@@ -200,7 +296,9 @@ export default function ChatWithRestaurantScreen() {
         contentContainerStyle={styles.chatContent}
       >
         {messages.map((item, idx) => {
-          const isUser = item.senderRole === 'customer';
+          const s = item.sender || item.senderId;
+          const messageSenderId = s ? (typeof s === 'string' ? s : (s.id || s._id || '')) : '';
+          const isMe = !!(messageSenderId && user?.id && messageSenderId === user.id);
           
           // Date Separator logic
           const currentDateStr = new Date(item.createdAt).toDateString();
@@ -215,10 +313,10 @@ export default function ChatWithRestaurantScreen() {
                 </View>
               )}
 
-              <View style={[styles.messageRow, isUser ? styles.userRow : styles.restaurantRow]}>
-                <View style={[styles.bubble, isUser ? styles.userBubble : styles.restaurantBubble]}>
-                  <Text style={[styles.messageText, isUser ? styles.userMessageText : styles.restMessageText]}>{item.content}</Text>
-                  <Text style={[styles.timeText, isUser ? styles.userTimeText : styles.restaurantTimeText]}>
+              <View style={[styles.messageRow, isMe ? styles.userRow : styles.restaurantRow]}>
+                <View style={[styles.bubble, isMe ? styles.userBubble : styles.restaurantBubble]}>
+                  <Text style={[styles.messageText, isMe ? styles.userMessageText : styles.restMessageText]}>{item.content}</Text>
+                  <Text style={[styles.timeText, isMe ? styles.userTimeText : styles.restaurantTimeText]}>
                     {formatMessageTime(item.createdAt)}
                   </Text>
                 </View>
@@ -315,6 +413,20 @@ const styles = StyleSheet.create({
   statusText: {
     color: T.color.text3,
     fontSize: 10,
+  },
+  roleBadge: {
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 150, 83, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: T.radius.sm,
+    maxWidth: '45%',
+  },
+  roleText: {
+    color: T.color.primary,
+    fontSize: 10,
+    fontWeight: '600',
   },
   chatContent: {
     padding: T.space.lg,
@@ -438,5 +550,19 @@ const styles = StyleSheet.create({
   },
   loginBtn: {
     width: '100%',
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(212, 150, 83, 0.15)',
+    paddingVertical: 10,
+    paddingHorizontal: T.space.lg,
+    gap: 8,
+  },
+  infoBannerText: {
+    color: T.color.text2,
+    fontSize: 12,
   },
 });

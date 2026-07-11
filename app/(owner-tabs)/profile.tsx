@@ -131,6 +131,17 @@ export default function OwnerProfile() {
 
             <TouchableOpacity
               style={styles.itemRow}
+              onPress={() => router.push('/conversations' as any)}
+            >
+              <View style={styles.itemRowLeft}>
+                <FontAwesome name="comments-o" size={15} color={T.color.text2} style={{ marginRight: 12, width: 18 }} />
+                <Text style={styles.itemRowText}>Tin nhắn khách hàng (Chat)</Text>
+              </View>
+              <FontAwesome name="chevron-right" size={12} color={T.color.text3} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.itemRow}
               onPress={() => router.push('/owner/wallet' as any)}
             >
               <View style={styles.itemRowLeft}>

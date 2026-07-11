@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, SafeAreaView, Platform } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useRouter } from 'expo-router';
 import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
 import { T } from '@/src/theme/tokens';
 import { typography } from '@/src/theme/typography';
+import { chatApi } from '@/src/api/chat.api';
 
 interface RestaurantHeaderProps {
   title: string;
@@ -14,7 +15,30 @@ interface RestaurantHeaderProps {
 export const RestaurantHeader: React.FC<RestaurantHeaderProps> = ({ title, showBack }) => {
   const { activeRestaurant, restaurants, setActiveRestaurant } = useOwnerRestaurant();
   const [modalVisible, setModalVisible] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const router = useRouter();
+
+  useEffect(() => {
+    let active = true;
+    const fetchUnread = async () => {
+      try {
+        const res = await chatApi.getUnreadCount();
+        if (res.success && res.data && active) {
+          setUnreadChatCount(res.data.count || 0);
+        }
+      } catch (e) {
+        console.warn('Lỗi lấy số tin nhắn chưa đọc ở header:', e);
+      }
+    };
+    fetchUnread();
+    
+    const interval = setInterval(fetchUnread, 10000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleSelectRestaurant = (restaurant: any) => {
     setActiveRestaurant(restaurant);
@@ -36,22 +60,36 @@ export const RestaurantHeader: React.FC<RestaurantHeaderProps> = ({ title, showB
               <FontAwesome name="chevron-left" size={16} color={T.color.text1} />
             </TouchableOpacity>
           )}
-        <View style={styles.leftCol}>
-          <Text style={[typography.bodySM, styles.titleText]}>{title}</Text>
-          <TouchableOpacity
-            style={styles.pickerTrigger}
-            onPress={() => hasMultiple && setModalVisible(true)}
-            disabled={!hasMultiple}
-          >
-            <Text style={[typography.displaySM, styles.restaurantName]} numberOfLines={1}>
-              {activeRestaurant?.name || 'Chưa chọn nhà hàng'}
-            </Text>
-            {hasMultiple && (
-              <FontAwesome name="chevron-down" size={12} color={T.color.primary} style={styles.chevron} />
-            )}
-          </TouchableOpacity>
+          <View style={styles.leftCol}>
+            <Text style={[typography.bodySM, styles.titleText]}>{title}</Text>
+            <TouchableOpacity
+              style={styles.pickerTrigger}
+              onPress={() => hasMultiple && setModalVisible(true)}
+              disabled={!hasMultiple}
+            >
+              <Text style={[typography.displaySM, styles.restaurantName]} numberOfLines={1}>
+                {activeRestaurant?.name || 'Chưa chọn nhà hàng'}
+              </Text>
+              {hasMultiple && (
+                <FontAwesome name="chevron-down" size={12} color={T.color.primary} style={styles.chevron} />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.rightCol}>
+            <TouchableOpacity
+              style={styles.chatIconBtn}
+              onPress={() => router.push('/conversations' as any)}
+            >
+              <FontAwesome name="comments-o" size={20} color={T.color.text1} />
+              {unreadChatCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadChatCount > 9 ? '9+' : unreadChatCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
       <Modal
         visible={modalVisible}
@@ -134,6 +172,39 @@ const styles = StyleSheet.create({
   leftCol: {
     justifyContent: 'center',
     flex: 1,
+  },
+  rightCol: {
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    marginLeft: T.space.md,
+  },
+  chatIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: T.color.error,
+    borderRadius: 8,
+    height: 16,
+    minWidth: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
   },
   titleText: {
     color: T.color.text3,

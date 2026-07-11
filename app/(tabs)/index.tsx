@@ -5,6 +5,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { recommendationApi } from '@/src/api/recommendation.api';
 import { restaurantApi } from '@/src/api/restaurant.api';
 import { notificationApi } from '@/src/api/notification.api';
+import { chatApi } from '@/src/api/chat.api';
 import { useLocation } from '@/src/hooks/useLocation';
 import { T } from '@/src/theme/tokens';
 import { typography } from '@/src/theme/typography';
@@ -28,6 +29,7 @@ export default function HomeScreen() {
   const [cuisines, setCuisines] = useState<string[]>([]);
   const [selectedCuisine, setSelectedCuisine] = useState<string>('Tất cả');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const fetchData = useCallback(async (coords?: { latitude: number; longitude: number } | null) => {
     try {
@@ -53,11 +55,17 @@ export default function HomeScreen() {
         setCuisines(list);
       }
 
-      // Lấy số lượng thông báo chưa đọc nếu đã đăng nhập
+      // Lấy số lượng thông báo & chat chưa đọc nếu đã đăng nhập
       if (isAuthenticated) {
-        const notifyRes = await notificationApi.getUnreadCount();
+        const [notifyRes, chatUnreadRes] = await Promise.all([
+          notificationApi.getUnreadCount(),
+          chatApi.getUnreadCount(),
+        ]);
         if (notifyRes.success && notifyRes.data) {
           setUnreadCount(notifyRes.data.count || 0);
+        }
+        if (chatUnreadRes.success && chatUnreadRes.data) {
+          setUnreadChatCount(chatUnreadRes.data.count || 0);
         }
       }
     } catch (error) {
@@ -113,6 +121,14 @@ export default function HomeScreen() {
           </Text>
         </View>
         <View style={styles.headerRight}>
+          <Pressable onPress={() => router.push('/conversations')} style={styles.chatButton}>
+            <FontAwesome name="comments-o" size={20} color="#FFFFFF" />
+            {unreadChatCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadChatCount > 9 ? '9+' : unreadChatCount}</Text>
+              </View>
+            )}
+          </Pressable>
           <Pressable onPress={() => router.push('/notifications')} style={styles.bellButton}>
             <FontAwesome name="bell-o" size={20} color="#FFFFFF" />
             {unreadCount > 0 && (
@@ -301,6 +317,18 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  chatButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: T.space.sm,
+    position: 'relative',
   },
   bellButton: {
     width: 36,

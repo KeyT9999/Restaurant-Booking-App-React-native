@@ -8,6 +8,8 @@ import { BackButton } from '@/src/components/ui/BackButton';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { EmptyState } from '@/src/components/layout/EmptyState';
 import { chatApi } from '@/src/api/chat.api';
+import { useAuth } from '@/src/auth/useAuth';
+import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
 
 interface Conversation {
   id: string;
@@ -17,6 +19,12 @@ interface Conversation {
     name: string;
     logo?: string;
   };
+  customer?: {
+    id: string;
+    fullName: string;
+    avatarUrl?: string;
+  };
+  customerId?: any;
   lastMessage?: {
     content: string;
     createdAt: string;
@@ -38,6 +46,10 @@ function timeAgo(dateStr: string): string {
 
 export default function ConversationsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { activeRestaurant } = useOwnerRestaurant();
+  const isOwner = user?.role === 'restaurant_owner';
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -46,7 +58,8 @@ export default function ConversationsScreen() {
   const load = useCallback(async (showIndicator = true) => {
     if (showIndicator) setLoading(true);
     try {
-      const res = await chatApi.getConversations();
+      const params = isOwner && activeRestaurant?.id ? { restaurantId: activeRestaurant.id } : undefined;
+      const res = await chatApi.getConversations(params);
       setConversations(res?.data?.conversations || res?.data || []);
     } catch (e) {
       console.warn('Lỗi tải hội thoại:', e);
@@ -54,7 +67,7 @@ export default function ConversationsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isOwner, activeRestaurant?.id]);
 
   useEffect(() => {
     load();
@@ -65,23 +78,58 @@ export default function ConversationsScreen() {
     load(false);
   };
 
+  const getCustomerName = (c: Conversation) => {
+    if (!c) return 'Khách hàng';
+    const cust = c.customer || c.customerId;
+    if (cust && typeof cust === 'object') {
+      return cust.fullName || cust.username || cust.email || 'Khách hàng';
+    }
+    return 'Khách hàng';
+  };
+
+  const getCustomerAvatar = (c: Conversation) => {
+    const cust = c.customer || c.customerId;
+    if (cust && typeof cust === 'object') {
+      return cust.avatarUrl || '';
+    }
+    return '';
+  };
+
   const filteredConversations = conversations.filter((c) => {
-    const name = c.restaurant?.name || 'Nhà hàng';
+    const name = isOwner
+      ? getCustomerName(c)
+      : (c.restaurant?.name || 'Nhà hàng');
     return name.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   const renderItem = ({ item }: { item: Conversation }) => {
-    const name = item.restaurant?.name || 'Nhà hàng';
-    const logo = item.restaurant?.logo;
+    const name = isOwner ? getCustomerName(item) : (item.restaurant?.name || 'Nhà hàng');
+    const logo = isOwner ? getCustomerAvatar(item) : item.restaurant?.logo;
     const lastMsg = item.lastMessage?.content || 'Bắt đầu cuộc trò chuyện...';
     const time = item.updatedAt ? timeAgo(item.updatedAt) : '';
     const hasUnread = (item.unreadCount ?? 0) > 0;
+
+    const handlePress = () => {
+      if (isOwner) {
+        router.push({
+          pathname: `/chat/${item.restaurantId}`,
+          params: {
+            restaurantId: item.restaurantId,
+            conversationId: item.id,
+            customerName: name,
+            customerAvatar: logo || '',
+          },
+        } as any);
+      } else {
+        router.push(`/chat/${item.restaurantId}` as any);
+      }
+    };
 
     return (
       <Pressable
         style={styles.convCard}
         android_ripple={{ color: 'rgba(255,255,255,0.05)' }}
-        onPress={() => router.push(`/chat/${item.restaurantId}`)}
+        onPress={handlePress}
       >
         {/* Avatar */}
         <View style={styles.avatarWrapper}>
@@ -131,6 +179,15 @@ export default function ConversationsScreen() {
         <Text style={[typography.titleMD, styles.title]}>Tin nhắn</Text>
         <View style={{ width: 40 }} />
       </View>
+
+      {isOwner && activeRestaurant?.name ? (
+        <View style={styles.infoBanner}>
+          <FontAwesome name="building" size={12} color={T.color.primary} />
+          <Text style={styles.infoBannerText}>
+            Bạn đang trò chuyện với tư cách: <Text style={{ fontWeight: '700', color: '#FFFFFF' }}>{activeRestaurant.name}</Text>
+          </Text>
+        </View>
+      ) : null}
 
       {/* Search bar */}
       <View style={styles.searchContainer}>
@@ -249,4 +306,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   unreadCount: { color: '#0C0F16', fontSize: 11, fontWeight: '800' },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(212, 150, 83, 0.15)',
+    paddingVertical: 10,
+    paddingHorizontal: T.space.lg,
+    gap: 8,
+  },
+  infoBannerText: {
+    color: T.color.text2,
+    fontSize: 12,
+  },
 });
