@@ -179,6 +179,15 @@ export default function ConversationsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      {isOwner && activeRestaurant?.name ? (
+        <View style={styles.infoBanner}>
+          <FontAwesome name="building" size={12} color={T.color.primary} />
+          <Text style={styles.infoBannerText}>
+            Bạn đang trò chuyện với tư cách: <Text style={{ fontWeight: '700', color: '#FFFFFF' }}>{activeRestaurant.name}</Text>
+          </Text>
+        </View>
+      ) : null}
+
       {/* Search bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
@@ -296,4 +305,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   unreadCount: { color: '#0C0F16', fontSize: 11, fontWeight: '800' },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(212, 150, 83, 0.15)',
+    paddingVertical: 10,
+    paddingHorizontal: T.space.lg,
+    gap: 8,
+  },
+  infoBannerText: {
+    color: T.color.text2,
+    fontSize: 12,
+  },
 });
