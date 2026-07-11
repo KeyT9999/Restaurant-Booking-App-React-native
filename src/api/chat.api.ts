@@ -1,9 +1,8 @@
 import { apiClient } from './client';
 
 export const chatApi = {
-  // Get list of active conversations
-  async getConversations() {
-    const res = await apiClient.get('/chat/conversations');
+  async getConversations(params?: { restaurantId?: string; type?: string; status?: string }) {
+    const res = await apiClient.get('/chat/conversations', { params });
     return res.data;
   },
 

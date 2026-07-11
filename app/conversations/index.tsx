@@ -9,6 +9,7 @@ import { Skeleton } from '@/src/components/ui/Skeleton';
 import { EmptyState } from '@/src/components/layout/EmptyState';
 import { chatApi } from '@/src/api/chat.api';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
 
 interface Conversation {
   id: string;
@@ -46,6 +47,7 @@ function timeAgo(dateStr: string): string {
 export default function ConversationsScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { activeRestaurant } = useOwnerRestaurant();
   const isOwner = user?.role === 'restaurant_owner';
 
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,8 @@ export default function ConversationsScreen() {
   const load = useCallback(async (showIndicator = true) => {
     if (showIndicator) setLoading(true);
     try {
-      const res = await chatApi.getConversations();
+      const params = isOwner && activeRestaurant?.id ? { restaurantId: activeRestaurant.id } : undefined;
+      const res = await chatApi.getConversations(params);
       setConversations(res?.data?.conversations || res?.data || []);
     } catch (e) {
       console.warn('Lỗi tải hội thoại:', e);
@@ -64,7 +67,7 @@ export default function ConversationsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isOwner, activeRestaurant?.id]);
 
   useEffect(() => {
     load();

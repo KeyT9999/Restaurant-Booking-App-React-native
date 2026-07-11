@@ -277,6 +277,15 @@ export default function ChatWithRestaurantScreen() {
         ) : null}
       </View>
 
+      {isOwner && ownRestaurantName ? (
+        <View style={styles.infoBanner}>
+          <FontAwesome name="building" size={12} color={T.color.primary} />
+          <Text style={styles.infoBannerText}>
+            Bạn đang trò chuyện với tư cách: <Text style={{ fontWeight: '700', color: '#FFFFFF' }}>{ownRestaurantName}</Text>
+          </Text>
+        </View>
+      ) : null}
+
       {/* Messages */}
       <ScrollView
         ref={scrollViewRef}
@@ -538,5 +547,19 @@ const styles = StyleSheet.create({
   },
   loginBtn: {
     width: '100%',
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(212, 150, 83, 0.08)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(212, 150, 83, 0.15)',
+    paddingVertical: 10,
+    paddingHorizontal: T.space.lg,
+    gap: 8,
+  },
+  infoBannerText: {
+    color: T.color.text2,
+    fontSize: 12,
   },
 });
