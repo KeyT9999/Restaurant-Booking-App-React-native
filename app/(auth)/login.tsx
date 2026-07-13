@@ -62,6 +62,8 @@ export default function Login() {
           showToast('Đăng nhập bằng Google thành công! 🎉', 'success');
           if ((loginRes as any).user?.role === 'restaurant_owner') {
             router.replace('/(owner-tabs)' as any);
+          } else if ((loginRes as any).user?.role === 'admin') {
+            router.replace('/(admin)/dashboard' as any);
           } else {
             router.replace('/(tabs)');
           }
@@ -84,7 +86,8 @@ export default function Login() {
       setErrorMsg('Vui lòng nhập đầy đủ thông tin');
       return;
     }
-    if (!validateEmail(email)) {
+    // Chỉ validate format email nếu input chứa '@', còn lại coi là username
+    if (email.includes('@') && !validateEmail(email)) {
       setErrorMsg('Email không hợp lệ');
       return;
     }
@@ -95,6 +98,8 @@ export default function Login() {
     if (res.success) {
       if ((res as any).user?.role === 'restaurant_owner') {
         router.replace('/(owner-tabs)' as any);
+      } else if ((res as any).user?.role === 'admin') {
+        router.replace('/(admin)/dashboard' as any);
       } else {
         router.replace('/(tabs)');
       }
