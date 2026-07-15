@@ -2,18 +2,20 @@ import React from 'react';
 import { StyleSheet, Text, View, Image, Pressable, ViewStyle } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { FontAwesome } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { T } from '@/src/theme/tokens';
 import { Restaurant } from '@/src/types/restaurant.types';
 import { formatPriceRange } from '@/src/utils/format';
 import { Rating } from '@/src/components/ui/Rating';
 import { shadows } from '@/src/theme/shadows';
+import { getRestaurantId } from '@/src/utils/restaurant';
 
 export type RestaurantCardVariant = 'featured' | 'horizontal' | 'compact';
 
 interface RestaurantCardProps {
   restaurant: Restaurant;
   variant?: RestaurantCardVariant;
-  onPress: () => void;
+  onPress?: () => void;
   style?: ViewStyle;
 }
 
@@ -25,6 +27,7 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
   onPress,
   style,
 }) => {
+  const router = useRouter();
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => {
@@ -39,6 +42,33 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
 
   const handlePressOut = () => {
     scale.value = withSpring(1, { damping: 10, stiffness: 300 });
+  };
+
+  const restaurantId = getRestaurantId(restaurant);
+
+  const handlePress = () => {
+    if (__DEV__) {
+      console.log('[RestaurantCard] press', {
+        id: restaurantId,
+        name: restaurant?.name,
+        target: `/restaurants/${restaurantId}`,
+      });
+    }
+
+    if (onPress) {
+      onPress();
+      return;
+    }
+
+    if (!restaurantId) {
+      console.warn('[RestaurantCard] Missing restaurant id', restaurant);
+      return;
+    }
+
+    router.push({
+      pathname: '/restaurants/[id]',
+      params: { id: restaurantId },
+    });
   };
 
   // Normalize ảnh: hỗ trợ cả shape recommendation (image) lẫn detail API (coverImage, logo)
@@ -104,7 +134,7 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
       <AnimatedPressable
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        onPress={onPress}
+        onPress={handlePress}
         style={[styles.featuredCard, animatedStyle, style]}
       >
         <Image source={{ uri: imageUrl }} style={styles.featuredImage} />
@@ -127,7 +157,7 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
       <AnimatedPressable
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        onPress={onPress}
+        onPress={handlePress}
         style={[styles.compactCard, animatedStyle, style]}
       >
         <Image source={{ uri: imageUrl }} style={styles.compactImage} />
@@ -144,7 +174,7 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
     <AnimatedPressable
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      onPress={onPress}
+      onPress={handlePress}
       style={[styles.horizontalCard, animatedStyle, style]}
     >
       <Image source={{ uri: imageUrl }} style={styles.horizontalImage} />

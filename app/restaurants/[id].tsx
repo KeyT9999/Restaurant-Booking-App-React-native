@@ -23,7 +23,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function RestaurantDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { showToast } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -34,6 +34,12 @@ export default function RestaurantDetail() {
 
   const [activeTab, setActiveTab] = useState<'menu' | 'reviews'>('menu');
   const [liked, setLiked] = useState(false);
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('[RestaurantDetail] mounted', { id, role: user?.role });
+    }
+  }, [id, user]);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -62,22 +68,28 @@ export default function RestaurantDetail() {
         setRestaurant(restRes.data);
       }
       if (menuRes && menuRes.success && menuRes.data) {
-        // Menu endpoint returns categories/menuItems
         setMenuItems(menuRes.data.menuItems || []);
       }
       if (reviewsRes && reviewsRes.success && reviewsRes.data) {
-        setReviews(reviewsRes.data.reviews || []);
+        // API trả về mảng reviews trực tiếp trong data
+        setReviews(Array.isArray(reviewsRes.data) ? reviewsRes.data : reviewsRes.data.reviews || []);
       }
       if (ratingRes && ratingRes.success && ratingRes.data) {
-        setRatingSummary(ratingRes.data.summary || null);
+        // API trả về đối tượng summary trực tiếp trong data
+        setRatingSummary(ratingRes.data.summary || ratingRes.data || null);
       }
 
       // Check if liked if logged in
       if (isAuthenticated) {
-        const favsRes = await favoriteApi.getFavoriteIds();
-        if (favsRes.success && favsRes.data) {
-          const ids: string[] = favsRes.data.ids || [];
-          setLiked(ids.includes(id));
+        try {
+          const favsRes = await favoriteApi.getFavoriteIds();
+          if (favsRes.success && favsRes.data) {
+            // API trả về mảng ids trực tiếp trong data
+            const ids: string[] = Array.isArray(favsRes.data) ? favsRes.data : favsRes.data.ids || [];
+            setLiked(ids.includes(id));
+          }
+        } catch (favError: any) {
+          console.warn('Lỗi tải danh sách ID yêu thích:', favError.message);
         }
       }
     } catch (error) {

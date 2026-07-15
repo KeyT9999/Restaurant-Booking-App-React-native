@@ -1,16 +1,16 @@
 const ERROR_COPY: Record<string, string> = {
-  AI_DISABLED: 'Tro ly AI dang tam thoi bi tat.',
-  TOOL_DISABLED: 'Tinh nang AI nay hien dang tam dung.',
-  RATE_LIMITED: 'Ban dang gui qua nhieu yeu cau. Vui long thu lai sau.',
-  AI_RATE_LIMITED: 'Ban dang gui qua nhieu yeu cau. Vui long thu lai sau.',
-  AI_PROVIDER_RATE_LIMITED: 'Nha cung cap AI dang qua tai hoac het han muc tam thoi.',
-  BUDGET_LIMITED: 'Tro ly AI dang tam dung do vuot ngan sach van hanh.',
-  AI_UNAVAILABLE: 'Tro ly AI dang tam thoi khong kha dung. Vui long thu lai sau.',
-  AI_TIMEOUT: 'Tro ly phan hoi qua lau. Vui long thu lai.',
-  AI_AUTH_ERROR: 'Cau hinh Tro ly BookEat chua hop le.',
-  AI_STREAM_INTERRUPTED: 'Phan hoi bi ngat giua chung. Vui long thu lai.',
-  AI_STREAM_INVALID: 'Du lieu phan hoi tu tro ly khong hop le.',
-  AUTH_REQUIRED: 'Ban can dang nhap de su dung tinh nang nay.',
+  AI_DISABLED: 'Trợ lý AI đang tạm thời bị tắt.',
+  TOOL_DISABLED: 'Tính năng AI này hiện đang tạm dừng.',
+  RATE_LIMITED: 'Bạn đang gửi quá nhiều yêu cầu. Vui lòng thử lại sau.',
+  AI_RATE_LIMITED: 'Bạn đang gửi quá nhiều yêu cầu. Vui lòng thử lại sau.',
+  AI_PROVIDER_RATE_LIMITED: 'Nhà cung cấp AI đang quá tải hoặc hết hạn mức tạm thời.',
+  BUDGET_LIMITED: 'Trợ lý AI đang tạm dừng do vượt ngân sách vận hành.',
+  AI_UNAVAILABLE: 'Trợ lý AI đang tạm thời không khả dụng. Vui lòng thử lại sau.',
+  AI_TIMEOUT: 'Trợ lý phản hồi quá lâu. Vui lòng thử lại.',
+  AI_AUTH_ERROR: 'Cấu hình Trợ lý BookEat chưa hợp lệ.',
+  AI_STREAM_INTERRUPTED: 'Phản hồi bị ngắt giữa chừng. Vui lòng thử lại.',
+  AI_STREAM_INVALID: 'Dữ liệu phản hồi từ trợ lý không hợp lệ.',
+  AUTH_REQUIRED: 'Bạn cần đăng nhập để sử dụng tính năng này.',
 };
 
 const AUDIENCE_PREFIX: Record<string, string> = {
@@ -31,7 +31,7 @@ export const getAIChatErrorMessage = (
     return `${prefix}: ${base}`;
   }
 
-  return error?.message || 'Phan hoi AI bi gian doan. Vui long thu lai.';
+  return error?.message || 'Phản hồi AI bị gián đoạn. Vui lòng thử lại.';
 };
 
 export const isNonRetryableAIError = (

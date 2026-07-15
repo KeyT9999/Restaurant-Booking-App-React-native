@@ -57,14 +57,14 @@ export default function AdminRestaurantsDashboard() {
           subtitle={`${pending} hồ sơ mới`}
           badge={pending}
           badgeBgColor="#e8955d"
-          onPress={() => router.push('/(admin)/restaurants/list?approvalStatus=pending')}
+          onPress={() => router.push('/(admin)/manage-restaurants/list?approvalStatus=pending')}
         />
         <ActionCard
           icon="trending-up"
           title="Tất cả nhà hàng"
           subtitle="Quản lý danh sách"
           iconColor="#3B82F6"
-          onPress={() => router.push('/(admin)/restaurants/list')}
+          onPress={() => router.push('/(admin)/manage-restaurants/list')}
         />
       </View>
     </ScrollView>

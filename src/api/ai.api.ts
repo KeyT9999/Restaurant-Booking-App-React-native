@@ -84,7 +84,7 @@ const parseEventBlock = (block: string): AIStreamEventPayload | null => {
       data: JSON.parse(dataLines.join('\n')),
     };
   } catch {
-    throw new AIStreamError('Du lieu phan hoi tu tro ly khong hop le.', {
+    throw new AIStreamError('Dữ liệu phản hồi từ trợ lý không hợp lệ.', {
       code: 'AI_STREAM_INVALID',
       retryable: false,
     });
@@ -143,7 +143,7 @@ const readHttpError = async (response: Response) => {
     payload = null;
   }
 
-  throw new AIStreamError(payload?.message || 'Khong the ket noi voi Tro ly BookEat.', {
+  throw new AIStreamError(payload?.message || 'Không thể kết nối với Trợ lý BookEat.', {
     code: payload?.code || 'AI_UNAVAILABLE',
     status: response.status,
     retryable: ![400, 401, 403].includes(response.status),
@@ -232,7 +232,7 @@ export const aiApi = {
       const parser = createSseParser((payload) => {
         if (payload.event === 'error') {
           streamError = new AIStreamError(
-            payload.data?.message || 'Phan hoi bi gian doan.',
+            payload.data?.message || 'Phản hồi bị gián đoạn.',
             {
               code: payload.data?.code || 'AI_UNAVAILABLE',
               retryable: payload.data?.retryable !== false,
@@ -273,7 +273,7 @@ export const aiApi = {
       }
 
       if (!receivedDone) {
-        throw new AIStreamError('Phan hoi bi ngat giua chung. Vui long thu lai.', {
+        throw new AIStreamError('Phản hồi bị ngắt giữa chừng. Vui lòng thử lại.', {
           code: 'AI_STREAM_INTERRUPTED',
         });
       }
@@ -283,19 +283,19 @@ export const aiApi = {
       }
 
       if (timedOut) {
-        throw new AIStreamError('Tro ly phan hoi qua lau. Vui long thu lai.', {
+        throw new AIStreamError('Trợ lý phản hồi quá lâu. Vui lòng thử lại.', {
           code: 'AI_TIMEOUT',
         });
       }
 
       if (signal?.aborted || requestController.signal.aborted) {
-        throw new AIStreamError('Phan hoi da duoc dung.', {
+        throw new AIStreamError('Phản hồi đã được dừng.', {
           code: 'AI_CANCELLED',
           retryable: false,
         });
       }
 
-      throw new AIStreamError('Khong the ket noi voi Tro ly BookEat.', {
+      throw new AIStreamError('Không thể kết nối với Trợ lý BookEat.', {
         code: 'AI_UNAVAILABLE',
       });
     } finally {

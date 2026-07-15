@@ -154,7 +154,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {/* ─── Fake Search Bar ─── */}
-        <Pressable onPress={() => router.push('/search')} style={styles.searchBar}>
+        <Pressable onPress={() => router.push({ pathname: '/search', params: { focus: 'true' } })} style={styles.searchBar}>
           <FontAwesome name="search" size={16} color={T.color.text3} style={styles.searchIcon} />
           <Text style={styles.searchText}>Tìm nhà hàng, món ăn, vị trí...</Text>
         </Pressable>
@@ -206,7 +206,7 @@ export default function HomeScreen() {
         <SectionHeader
           title="Dành riêng cho bạn"
           action="Xem thêm"
-          onAction={() => router.push('/search')}
+          onAction={() => router.push('/restaurants/list')}
           style={styles.sectionHeader}
         />
         {loading ? (
@@ -228,7 +228,6 @@ export default function HomeScreen() {
                   key={rId || `featured-${index}`}
                   restaurant={item}
                   variant="featured"
-                  onPress={() => router.push(`/restaurants/${rId}`)}
                   style={styles.featuredCard}
                 />
               );
@@ -264,7 +263,6 @@ export default function HomeScreen() {
                   key={rId || index.toString()}
                   restaurant={restaurant}
                   variant="horizontal"
-                  onPress={() => router.push(`/restaurants/${rId}`)}
                 />
               );
             })

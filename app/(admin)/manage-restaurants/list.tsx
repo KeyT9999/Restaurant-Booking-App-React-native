@@ -63,7 +63,7 @@ export default function AdminRestaurantsListScreen() {
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() => router.push(`/(admin)/restaurants/${item._id || item.id}` as any)}
+        onPress={() => router.push(`/(admin)/manage-restaurants/${item._id || item.id}` as any)}
         activeOpacity={0.7}
       >
         {/* Left Avatar */}

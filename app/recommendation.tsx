@@ -10,6 +10,7 @@ import { useToast } from '@/src/components/ui/Toast';
 import { formatCurrency } from '@/src/utils/format';
 import { FontAwesome } from '@expo/vector-icons';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
+import { getRestaurantId } from '@/src/utils/restaurant';
 
 const { width } = Dimensions.get('window');
 
@@ -185,11 +186,21 @@ export default function RecommendationScreen() {
           {/* Bento Recommendation Section */}
           <View style={styles.bentoSection}>
             <Text style={styles.sectionTitle}>Bản Đồ Mỹ Vị</Text>
-            
+
             {/* Top Match - Bento Large Item */}
             {restaurants.length > 0 && (
               <Animated.View entering={FadeInDown.delay(200)} style={styles.bentoLargeCard}>
-                <Pressable onPress={() => router.push(`/restaurants/${restaurants[0].id || restaurants[0].restaurantId}`)}>
+                <Pressable onPress={() => {
+                  const rId = getRestaurantId(restaurants[0]);
+                  if (rId) {
+                    router.push({
+                      pathname: '/restaurants/[id]',
+                      params: { id: rId },
+                    });
+                  } else {
+                    console.warn('[RecommendationScreen] Missing restaurant id for bento large', restaurants[0]);
+                  }
+                }}>
                   <Image
                     source={{ uri: restaurants[0].image || restaurants[0].photo || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=500' }}
                     style={styles.bentoLargeImg}
@@ -215,7 +226,17 @@ export default function RecommendationScreen() {
             <View style={styles.bentoGridRow}>
               {restaurants.slice(1, 3).map((item, idx) => (
                 <Animated.View key={item.id || item.restaurantId || idx.toString()} entering={FadeInDown.delay(300 + idx * 100)} style={styles.bentoSmallCard}>
-                  <Pressable onPress={() => router.push(`/restaurants/${item.id || item.restaurantId}`)} style={{ flex: 1 }}>
+                  <Pressable onPress={() => {
+                    const rId = getRestaurantId(item);
+                    if (rId) {
+                      router.push({
+                        pathname: '/restaurants/[id]',
+                        params: { id: rId },
+                      });
+                    } else {
+                      console.warn('[RecommendationScreen] Missing restaurant id for bento small', item);
+                    }
+                  }} style={{ flex: 1 }}>
                     <Image
                       source={{ uri: item.image || item.photo || 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=300' }}
                       style={styles.bentoSmallImg}
@@ -260,7 +281,17 @@ export default function RecommendationScreen() {
               {restaurants.slice(3).map((item, index) => (
                 <Animated.View key={item.id || item.restaurantId || index.toString()} entering={FadeInDown.delay(100 + index * 50)} style={styles.restaurantRow}>
                   <Pressable
-                    onPress={() => router.push(`/restaurants/${item.id || item.restaurantId}`)}
+                    onPress={() => {
+                      const rId = getRestaurantId(item);
+                      if (rId) {
+                        router.push({
+                          pathname: '/restaurants/[id]',
+                          params: { id: rId },
+                        });
+                      } else {
+                        console.warn('[RecommendationScreen] Missing restaurant id for other list item', item);
+                      }
+                    }}
                     style={styles.restaurantRowPressable}
                   >
                     <Image

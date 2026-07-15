@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator, RefreshControl,
+  Alert, ActivityIndicator, RefreshControl, Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,32 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   approved:  { label: 'Hoạt động',  color: '#10B981', icon: 'check-circle' },
   suspended: { label: 'Tạm khóa',  color: '#EF4444', icon: 'slash' },
   rejected:  { label: 'Từ chối',   color: '#5C5C66', icon: 'x-circle' },
+};
+
+const PRICE_RANGE_LABELS: Record<string, string> = {
+  budget: 'Bình dân',
+  moderate: 'Trung bình',
+  expensive: 'Cao cấp',
+  luxury: 'Sang trọng',
+};
+
+const formatCurrency = (value?: number) => {
+  if (value === undefined || value === null) return '—';
+  return value.toLocaleString('vi-VN') + ' đ';
+};
+
+const formatOperatingHoursShort = (operatingHours: any) => {
+  if (!operatingHours) return '—';
+  const mon = operatingHours.monday;
+  if (mon && mon.open && mon.close) {
+    return `${mon.open} - ${mon.close}`;
+  }
+  for (const day of ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']) {
+    if (operatingHours[day] && operatingHours[day].open) {
+      return `${operatingHours[day].open} - ${operatingHours[day].close}`;
+    }
+  }
+  return '—';
 };
 
 interface InfoRowProps { label: string; value?: string; }
@@ -56,34 +82,59 @@ export default function AdminRestaurantDetailScreen() {
 
   const handleAction = async (action: 'approve' | 'reject' | 'suspend' | 'unsuspend' | 'restore') => {
     const labelMap = { approve: 'Phê duyệt', reject: 'Từ chối', suspend: 'Tạm khóa', unsuspend: 'Mở khóa', restore: 'Khôi phục' };
-    const isDestructive = action === 'reject' || action === 'suspend';
-    Alert.alert(
-      'Xác nhận',
-      `Bạn có chắc muốn ${labelMap[action]} nhà hàng "${data?.name}"?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: labelMap[action],
-          style: isDestructive ? 'destructive' : 'default',
-          onPress: async () => {
-            try {
-              setActionLoading(true);
-              const res = await adminApi.updateRestaurantStatus(id!, action);
-              if (res.success) {
-                setData((prev: any) => ({ ...prev, ...res.data }));
-                Alert.alert('Thành công', `Đã ${labelMap[action]} nhà hàng`);
-              } else {
-                Alert.alert('Lỗi', res.message || 'Không thể thực hiện');
+    
+    if (action === 'reject' || action === 'suspend') {
+      Alert.prompt(
+        labelMap[action],
+        `Vui lòng nhập lý do ${labelMap[action].toLowerCase()} nhà hàng "${data?.name}":`,
+        [
+          { text: 'Hủy', style: 'cancel' },
+          {
+            text: labelMap[action],
+            style: 'destructive',
+            onPress: async (reason?: string) => {
+              if (!reason || !reason.trim()) {
+                Alert.alert('Lỗi', 'Lý do không được để trống');
+                return;
               }
-            } catch (err: any) {
-              Alert.alert('Lỗi', err.message || 'Không thể thực hiện tác vụ');
-            } finally {
-              setActionLoading(false);
+              await executeStatusUpdate(action, { reason: reason.trim() });
             }
-          },
-        },
-      ]
-    );
+          }
+        ],
+        'plain-text'
+      );
+    } else {
+      Alert.alert(
+        'Xác nhận',
+        `Bạn có chắc muốn ${labelMap[action].toLowerCase()} nhà hàng "${data?.name}"?`,
+        [
+          { text: 'Hủy', style: 'cancel' },
+          {
+            text: labelMap[action],
+            style: 'default',
+            onPress: () => executeStatusUpdate(action)
+          }
+        ]
+      );
+    }
+  };
+
+  const executeStatusUpdate = async (action: string, body?: any) => {
+    const labelMap = { approve: 'Phê duyệt', reject: 'Từ chối', suspend: 'Tạm khóa', unsuspend: 'Mở khóa', restore: 'Khôi phục' };
+    try {
+      setActionLoading(true);
+      const res = await adminApi.updateRestaurantStatus(id!, action as any, body);
+      if (res.success) {
+        setData((prev: any) => ({ ...prev, ...res.data }));
+        Alert.alert('Thành công', `Đã ${labelMap[action as keyof typeof labelMap]} nhà hàng`);
+      } else {
+        Alert.alert('Lỗi', res.message || 'Không thể thực hiện');
+      }
+    } catch (err: any) {
+      Alert.alert('Lỗi', err.message || 'Không thể thực hiện tác vụ');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (loading) {
@@ -202,9 +253,13 @@ export default function AdminRestaurantDetailScreen() {
           <Text style={styles.sectionTitle}>THÔNG TIN LIÊN HỆ</Text>
           <View style={styles.sectionCard}>
             <InfoRow label="Chủ sở hữu" value={data.ownerId?.fullName || data.ownerId?.username} />
-            <InfoRow label="Điện thoại" value={data.phone} />
-            <InfoRow label="Email" value={data.email} />
-            <InfoRow label="Website" value={data.website} />
+            <InfoRow label="SĐT Chủ sở hữu" value={data.ownerId?.phoneNumber} />
+            <InfoRow label="Email Chủ sở hữu" value={data.ownerId?.email} />
+            <InfoRow label="SĐT Nhà hàng" value={data.phoneNumber} />
+            <InfoRow label="Email Nhà hàng" value={data.email} />
+            <InfoRow label="Website" value={data.websiteUrl} />
+            {data.contactHotline ? <InfoRow label="Hotline" value={data.contactHotline} /> : null}
+            {data.contactSecondaryPhone ? <InfoRow label="SĐT Phụ" value={data.contactSecondaryPhone} /> : null}
           </View>
         </View>
 
@@ -213,30 +268,101 @@ export default function AdminRestaurantDetailScreen() {
           <Text style={styles.sectionTitle}>THÔNG TIN KINH DOANH</Text>
           <View style={styles.sectionCard}>
             <InfoRow label="Ẩm thực" value={data.cuisineTypes?.join(', ')} />
-            <InfoRow label="Khoảng giá" value={data.priceRange?.min && data.priceRange?.max ? `${data.priceRange.min.toLocaleString()} - ${data.priceRange.max.toLocaleString()} VNĐ` : undefined} />
-            <InfoRow label="Số chỗ ngồi" value={data.capacity ? `${data.capacity} chỗ` : undefined} />
-            <InfoRow label="Giờ mở cửa" value={
-              data.openingHours?.open && data.openingHours?.close
-                ? `${data.openingHours.open} - ${data.openingHours.close}`
-                : undefined
+            <InfoRow label="Khoảng giá" value={
+              data.priceRangeMin && data.priceRangeMax 
+                ? `${formatCurrency(data.priceRangeMin)} - ${formatCurrency(data.priceRangeMax)}` 
+                : (data.priceRange ? PRICE_RANGE_LABELS[data.priceRange] : '—')
             } />
+            {data.averagePrice ? <InfoRow label="Giá trung bình" value={formatCurrency(data.averagePrice)} /> : null}
+            <InfoRow label="Số chỗ ngồi" value={data.capacity ? `${data.capacity} chỗ` : undefined} />
+            <InfoRow label="Giờ mở cửa" value={formatOperatingHoursShort(data.operatingHours)} />
+            {data.amenities && data.amenities.length > 0 ? <InfoRow label="Tiện ích" value={data.amenities.join(', ')} /> : null}
+            {data.suitableFor && data.suitableFor.length > 0 ? <InfoRow label="Phù hợp" value={data.suitableFor.join(', ')} /> : null}
+            {data.signatureDishes && data.signatureDishes.length > 0 ? <InfoRow label="Món ăn đặc sắc" value={data.signatureDishes.join(', ')} /> : null}
           </View>
         </View>
+
+        {/* Legal & Registration Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>THÔNG TIN PHÁP LÝ & ĐĂNG KÝ</Text>
+          <View style={styles.sectionCard}>
+            <InfoRow label="Mã số thuế" value={data.taxCode} />
+            <InfoRow label="Giấy phép kinh doanh" value={data.businessLicense?.number} />
+            {data.businessLicense?.imageUrl ? (
+              <View style={styles.licenseImageContainer}>
+                <Text style={styles.licenseImageTitle}>Ảnh Giấy phép kinh doanh:</Text>
+                <Image source={{ uri: data.businessLicense.imageUrl }} style={styles.licenseImage} resizeMode="contain" />
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        {/* Financial Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>THÔNG TIN TÀI CHÍNH</Text>
+          <View style={styles.sectionCard}>
+            <InfoRow label="Số dư hiện tại" value={formatCurrency(data.balance)} />
+            <InfoRow label="Tổng doanh thu" value={formatCurrency(data.totalRevenue)} />
+            <InfoRow label="Tổng hoa hồng đã thu" value={formatCurrency(data.totalCommission)} />
+            <InfoRow label="Tỷ lệ hoa hồng chiết khấu" value={data.commissionRate !== undefined ? `${data.commissionRate}%` : '10%'} />
+            <InfoRow label="Tên ngân hàng" value={data.bankInfo?.bankName} />
+            <InfoRow label="Số tài khoản" value={data.bankInfo?.accountNumber} />
+            <InfoRow label="Chủ tài khoản" value={data.bankInfo?.accountHolder} />
+            <InfoRow label="Chi nhánh" value={data.bankInfo?.branch} />
+          </View>
+        </View>
+
+        {/* Configuration & Policy Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>CẤU HÌNH & CHÍNH SÁCH</Text>
+          <View style={styles.sectionCard}>
+            <InfoRow label="Featured (Nổi bật)" value={data.featured ? 'Có' : 'Không'} />
+            <InfoRow label="Active (Hoạt động)" value={data.active ? 'Có' : 'Không'} />
+            <InfoRow label="Có thực đơn" value={data.hasMenu ? 'Có' : 'Không'} />
+            <InfoRow label="Có sơ đồ bàn" value={data.hasTableLayout ? 'Có' : 'Không'} />
+            {data.cancellationPolicy ? (
+              <>
+                <InfoRow label="Thời gian hoàn tiền 100%" value={data.cancellationPolicy.fullRefundBeforeHours !== undefined ? `Trước ${data.cancellationPolicy.fullRefundBeforeHours} giờ` : '—'} />
+                <InfoRow label="Thời gian hoàn tiền một phần" value={data.cancellationPolicy.partialRefundBeforeHours !== undefined ? `Trước ${data.cancellationPolicy.partialRefundBeforeHours} giờ` : '—'} />
+                <InfoRow label="Tỷ lệ hoàn tiền một phần" value={data.cancellationPolicy.partialRefundPercent !== undefined ? `${data.cancellationPolicy.partialRefundPercent}%` : '—'} />
+                <InfoRow label="Phí hủy đặt bàn" value={formatCurrency(data.cancellationPolicy.cancellationFee)} />
+              </>
+            ) : null}
+          </View>
+        </View>
+
+        {/* Approval status / Action history info */}
+        {(data.approvedBy || data.rejectionReason || data.suspensionReason || data.deleteReason) ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>THÔNG TIN TRẠNG THÁI & PHÊ DUYỆT</Text>
+            <View style={styles.sectionCard}>
+              {data.approvedBy ? (
+                <>
+                  <InfoRow label="Người duyệt" value={data.approvedBy?.fullName || data.approvedBy?.email || '—'} />
+                  <InfoRow label="Thời gian duyệt" value={data.approvedAt ? new Date(data.approvedAt).toLocaleString('vi-VN') : '—'} />
+                </>
+              ) : null}
+              {data.rejectionReason ? <InfoRow label="Lý do từ chối" value={data.rejectionReason} /> : null}
+              {data.suspensionReason ? <InfoRow label="Lý do tạm khóa" value={data.suspensionReason} /> : null}
+              {data.deleteReason ? <InfoRow label="Lý do xóa" value={data.deleteReason} /> : null}
+            </View>
+          </View>
+        ) : null}
 
         {/* Stats */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>THỐNG KÊ</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>{data.totalBookings || 0}</Text>
+              <Text style={styles.statValue}>{data.stats?.totalBookings || 0}</Text>
               <Text style={styles.statLabel}>Đặt bàn</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>{data.averageRating ? Number(data.averageRating).toFixed(1) : '—'}</Text>
+              <Text style={styles.statValue}>{data.stats?.averageRating ? Number(data.stats.averageRating).toFixed(1) : '—'}</Text>
               <Text style={styles.statLabel}>Đánh giá</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>{data.reviewCount || 0}</Text>
+              <Text style={styles.statValue}>{data.stats?.totalReviews || 0}</Text>
               <Text style={styles.statLabel}>Review</Text>
             </View>
           </View>
@@ -251,6 +377,7 @@ export default function AdminRestaurantDetailScreen() {
             </View>
           </View>
         ) : null}
+
       </ScrollView>
     </View>
   );
@@ -311,4 +438,8 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 15, color: '#EF4444', textAlign: 'center' },
   retryBtn: { backgroundColor: '#1E1F28', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   retryText: { color: '#e8955d', fontWeight: '700', fontSize: 14 },
+
+  licenseImageContainer: { marginTop: 12, borderTopWidth: 1, borderTopColor: '#1E1F28', paddingTop: 12, paddingBottom: 12 },
+  licenseImageTitle: { fontSize: 13, color: '#5C5C66', marginBottom: 8 },
+  licenseImage: { width: '100%', height: 200, borderRadius: 8, backgroundColor: '#1E1F28' },
 });

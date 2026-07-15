@@ -23,6 +23,12 @@ export default function OwnerBookingDetail() {
   const [loadingTables, setLoadingTables] = useState(false);
   const [tableModalVisible, setTableModalVisible] = useState(false);
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
+  const [tableSaving, setTableSaving] = useState(false);
+
+  // Android does not support Alert.prompt, so text-based actions use an in-app modal.
+  const [actionModal, setActionModal] = useState<'cancel' | 'complete' | null>(null);
+  const [actionInput, setActionInput] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   const fetchBookingDetail = async () => {
     if (!id) return;
@@ -46,8 +52,9 @@ export default function OwnerBookingDetail() {
     fetchBookingDetail();
   }, [id]);
 
-  const handleConfirm = async () => {
+  const performConfirm = async () => {
     if (!booking) return;
+    setActionLoading(true);
     try {
       const res = await ownerApi.confirmBooking(booking._id || booking.id);
       if (res.success) {
@@ -58,69 +65,90 @@ export default function OwnerBookingDetail() {
       }
     } catch (e: any) {
       showToast(e.response?.data?.message || 'Lỗi hệ thống', 'error');
+    } finally {
+      setActionLoading(false);
     }
+  };
+
+  const handleConfirm = () => {
+    if (!booking) return;
+    if (!booking.tableNumbers?.length) {
+      showToast('Vui lòng gán bàn trước khi xác nhận đặt bàn', 'error');
+      openChangeTableModal();
+      return;
+    }
+
+    Alert.alert(
+      'Xác nhận đặt bàn',
+      `Xác nhận giữ ${booking.tableNumbers.join(', ')} cho khách ${booking.customerName}?`,
+      [
+        { text: 'Quay lại', style: 'cancel' },
+        {
+          text: 'Xác nhận',
+          onPress: performConfirm,
+        },
+      ]
+    );
   };
 
   const handleCancel = () => {
     if (!booking) return;
-    Alert.prompt(
-      'Huỷ đặt bàn',
-      'Vui lòng nhập lý do huỷ đặt bàn:',
-      [
-        { text: 'Huỷ bỏ', style: 'cancel' },
-        {
-          text: 'Huỷ đặt bàn',
-          style: 'destructive',
-          onPress: async (reason: string | undefined) => {
-            if (!reason || reason.trim().length === 0) {
-              showToast('Lý do huỷ là bắt buộc', 'error');
-              return;
-            }
-            try {
-              const res = await ownerApi.cancelBooking(booking._id || booking.id, reason.trim());
-              if (res.success) {
-                showToast('Đã huỷ đặt bàn thành công!', 'success');
-                fetchBookingDetail();
-              } else {
-                showToast(res.message || 'Thao tác thất bại', 'error');
-              }
-            } catch (e: any) {
-              showToast(e.response?.data?.message || 'Có lỗi xảy ra', 'error');
-            }
-          },
-        },
-      ],
-      'plain-text'
-    );
+    setActionInput('');
+    setActionModal('cancel');
   };
 
-  const handleComplete = async () => {
+  const submitCancel = async () => {
+    const reason = actionInput.trim();
+    if (!booking || !reason) {
+      showToast('Lý do huỷ là bắt buộc', 'error');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await ownerApi.cancelBooking(booking._id || booking.id, reason);
+      if (res.success) {
+        setActionModal(null);
+        showToast('Đã huỷ đặt bàn thành công!', 'success');
+        fetchBookingDetail();
+      } else {
+        showToast(res.message || 'Thao tác thất bại', 'error');
+      }
+    } catch (e: any) {
+      showToast(e.response?.data?.message || 'Có lỗi xảy ra', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleComplete = () => {
     if (!booking) return;
-    Alert.prompt(
-      'Hoàn thành đặt bàn',
-      'Nhập số lượng khách thực tế (để trống nếu đúng số đăng ký):',
-      [
-        { text: 'Huỷ', style: 'cancel' },
-        {
-          text: 'Hoàn thành',
-          onPress: async (val: string | undefined) => {
-            const count = val ? Number(val) : undefined;
-            try {
-              const res = await ownerApi.completeBooking(booking._id || booking.id, count);
-              if (res.success) {
-                showToast('Đã hoàn thành lượt đặt bàn!', 'success');
-                fetchBookingDetail();
-              } else {
-                showToast(res.message || 'Thao tác thất bại', 'error');
-              }
-            } catch (e: any) {
-              showToast(e.response?.data?.message || 'Lỗi hệ thống', 'error');
-            }
-          },
-        },
-      ],
-      'plain-text'
-    );
+    setActionInput(String(booking.numberOfGuests || ''));
+    setActionModal('complete');
+  };
+
+  const submitComplete = async () => {
+    const count = Number(actionInput);
+    if (!booking || !Number.isInteger(count) || count < 1 || count > 100) {
+      showToast('Số khách thực tế phải là số nguyên từ 1 đến 100', 'error');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await ownerApi.completeBooking(booking._id || booking.id, count);
+      if (res.success) {
+        setActionModal(null);
+        showToast('Đã hoàn thành lượt đặt bàn!', 'success');
+        fetchBookingDetail();
+      } else {
+        showToast(res.message || 'Thao tác thất bại', 'error');
+      }
+    } catch (e: any) {
+      showToast(e.response?.data?.message || 'Lỗi hệ thống', 'error');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleNoShow = async () => {
@@ -213,6 +241,7 @@ export default function OwnerBookingDetail() {
       showToast('Vui lòng chọn ít nhất 1 bàn', 'error');
       return;
     }
+    setTableSaving(true);
     try {
       const res = await ownerApi.changeTable(booking._id || booking.id, selectedTables);
       if (res.success) {
@@ -224,6 +253,8 @@ export default function OwnerBookingDetail() {
       }
     } catch (e: any) {
       showToast(e.response?.data?.message || 'Bàn chọn không hợp lệ', 'error');
+    } finally {
+      setTableSaving(false);
     }
   };
 
@@ -249,9 +280,10 @@ export default function OwnerBookingDetail() {
   const getStatusStyle = (status: string) => {
     switch (status) {
       case 'pending': return { bg: 'rgba(212, 150, 83, 0.1)', text: T.color.primary, label: 'Chờ duyệt' };
-      case 'confirmed': return { bg: 'rgba(16, 185, 129, 0.1)', text: T.color.success, label: 'Đã nhận' };
+      case 'confirmed': return { bg: 'rgba(16, 185, 129, 0.1)', text: T.color.success, label: 'Đã xác nhận' };
       case 'completed': return { bg: 'rgba(255, 255, 255, 0.05)', text: T.color.text2, label: 'Đã xong' };
       case 'cancelled': return { bg: 'rgba(244, 63, 94, 0.1)', text: T.color.error, label: 'Đã huỷ' };
+      case 'no_show': return { bg: 'rgba(244, 63, 94, 0.1)', text: T.color.error, label: 'Vắng mặt' };
       default: return { bg: 'rgba(255, 255, 255, 0.05)', text: T.color.text2, label: status };
     }
   };
@@ -375,12 +407,31 @@ export default function OwnerBookingDetail() {
       {/* Footer action buttons depending on booking status */}
       <View style={styles.footer}>
         {booking.status === 'pending' && (
-          <View style={styles.buttonGroup}>
-            <TouchableOpacity style={styles.dangerBtn} onPress={handleCancel}>
-              <Text style={styles.dangerBtnText}>Từ chối</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.successBtn} onPress={handleConfirm}>
-              <Text style={styles.successBtnText}>Duyệt đặt bàn</Text>
+          <View style={styles.buttonGroupVertical}>
+            <View style={styles.buttonGroupRow}>
+              <TouchableOpacity
+                style={styles.primaryOutlineBtn}
+                onPress={openChangeTableModal}
+                disabled={actionLoading}
+              >
+                <Text style={styles.primaryOutlineText}>
+                  {booking.tableNumbers?.length ? 'Đổi bàn' : 'Gán bàn'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.dangerBtn} onPress={handleCancel} disabled={actionLoading}>
+                <Text style={styles.dangerBtnText}>Từ chối</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={[styles.successBtnLarge, actionLoading && styles.disabledButton]}
+              onPress={handleConfirm}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <ActivityIndicator size="small" color={T.color.text1} />
+              ) : (
+                <Text style={styles.successBtnText}>Xác nhận đặt bàn</Text>
+              )}
             </TouchableOpacity>
           </View>
         )}
@@ -395,14 +446,18 @@ export default function OwnerBookingDetail() {
                 <Text style={styles.primaryOutlineText}>Đổi bàn</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.successBtnLarge} onPress={handleComplete}>
+            <TouchableOpacity
+              style={[styles.successBtnLarge, actionLoading && styles.disabledButton]}
+              onPress={handleComplete}
+              disabled={actionLoading}
+            >
               <Text style={styles.successBtnText}>Khách đã ăn xong / Hoàn thành</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {booking.status !== 'cancelled' && booking.status !== 'completed' && booking.status !== 'no_show' && booking.status !== 'pending' && (
-          <TouchableOpacity style={styles.cancelBookingBtn} onPress={handleCancel}>
+          <TouchableOpacity style={styles.cancelBookingBtn} onPress={handleCancel} disabled={actionLoading}>
             <Text style={styles.cancelBookingText}>Huỷ đặt bàn</Text>
           </TouchableOpacity>
         )}
@@ -418,7 +473,9 @@ export default function OwnerBookingDetail() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chọn bàn ăn</Text>
+              <Text style={styles.modalTitle}>
+                {booking.tableNumbers?.length ? 'Đổi bàn ăn' : 'Gán bàn ăn'}
+              </Text>
               <TouchableOpacity onPress={() => setTableModalVisible(false)}>
                 <FontAwesome name="times" size={18} color={T.color.text2} />
               </TouchableOpacity>
@@ -467,8 +524,81 @@ export default function OwnerBookingDetail() {
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setTableModalVisible(false)}>
                 <Text style={styles.modalCancelText}>Huỷ</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSubmitBtn} onPress={submitTableChange}>
-                <Text style={styles.modalSubmitText}>Lưu thay đổi</Text>
+              <TouchableOpacity
+                style={[styles.modalSubmitBtn, tableSaving && styles.disabledButton]}
+                onPress={submitTableChange}
+                disabled={tableSaving || loadingTables}
+              >
+                {tableSaving ? (
+                  <ActivityIndicator size="small" color={T.color.text1} />
+                ) : (
+                  <Text style={styles.modalSubmitText}>Lưu bàn</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={actionModal !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !actionLoading && setActionModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {actionModal === 'cancel' ? 'Huỷ đặt bàn' : 'Hoàn thành đặt bàn'}
+              </Text>
+              <TouchableOpacity onPress={() => setActionModal(null)} disabled={actionLoading}>
+                <FontAwesome name="times" size={18} color={T.color.text2} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.actionDescription}>
+              {actionModal === 'cancel'
+                ? 'Nhập lý do để khách hàng biết vì sao nhà hàng huỷ lượt đặt này.'
+                : 'Xác nhận số khách thực tế đã dùng bữa tại nhà hàng.'}
+            </Text>
+            <TextInput
+              style={[styles.actionInput, actionModal === 'cancel' && styles.actionInputMultiline]}
+              value={actionInput}
+              onChangeText={setActionInput}
+              placeholder={actionModal === 'cancel' ? 'Lý do huỷ đặt bàn...' : 'Số khách thực tế'}
+              placeholderTextColor={T.color.placeholder}
+              keyboardType={actionModal === 'complete' ? 'number-pad' : 'default'}
+              multiline={actionModal === 'cancel'}
+              maxLength={actionModal === 'cancel' ? 300 : 3}
+              editable={!actionLoading}
+              autoFocus
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setActionModal(null)}
+                disabled={actionLoading}
+              >
+                <Text style={styles.modalCancelText}>Quay lại</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalSubmitBtn,
+                  actionModal === 'cancel' && styles.modalSubmitDanger,
+                  actionLoading && styles.disabledButton,
+                ]}
+                onPress={actionModal === 'cancel' ? submitCancel : submitComplete}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={T.color.text1} />
+                ) : (
+                  <Text style={styles.modalSubmitText}>
+                    {actionModal === 'cancel' ? 'Xác nhận huỷ' : 'Hoàn thành'}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -729,6 +859,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  disabledButton: {
+    opacity: 0.55,
+  },
   cancelBookingBtn: {
     height: 44,
     borderRadius: T.radius.md,
@@ -841,5 +974,30 @@ const styles = StyleSheet.create({
     color: T.color.text1,
     fontSize: 13,
     fontWeight: '600',
+  },
+  modalSubmitDanger: {
+    backgroundColor: T.color.error,
+  },
+  actionDescription: {
+    color: T.color.text2,
+    fontSize: 13.5,
+    lineHeight: 20,
+    marginBottom: T.space.md,
+  },
+  actionInput: {
+    minHeight: 44,
+    borderRadius: T.radius.md,
+    borderWidth: 1,
+    borderColor: T.color.border,
+    backgroundColor: T.color.bg,
+    color: T.color.text1,
+    paddingHorizontal: T.space.md,
+    paddingVertical: T.space.sm,
+    fontSize: 14,
+    marginBottom: T.space.lg,
+  },
+  actionInputMultiline: {
+    minHeight: 96,
+    textAlignVertical: 'top',
   },
 });
