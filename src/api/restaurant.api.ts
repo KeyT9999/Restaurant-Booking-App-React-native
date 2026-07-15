@@ -59,6 +59,9 @@ export const restaurantApi = {
   },
 
   getById: async (id: string): Promise<any> => {
+    if (__DEV__) {
+      console.log('[restaurantApi.getById]', { id, endpoint: `/restaurants/${id}` });
+    }
     const response = await apiClient.get(`/restaurants/${id}`);
     return response.data;
   },

@@ -42,10 +42,12 @@ export default function RestaurantReviewsScreen() {
         reviewApi.getRestaurantReviews(id, { page: pg, limit: 10, sort }),
         pg === 1 ? reviewApi.getRatingSummary(id) : Promise.resolve(null),
       ]);
-      const newReviews: Review[] = revRes?.data?.reviews || [];
+      const newReviews: Review[] = Array.isArray(revRes?.data) ? revRes.data : revRes?.data?.reviews || [];
       setReviews((prev) => (reset || pg === 1) ? newReviews : [...prev, ...newReviews]);
       setHasMore(newReviews.length === 10);
-      if (sumRes?.data?.summary) setSummary(sumRes.data.summary);
+      if (sumRes?.data) {
+        setSummary(sumRes.data.summary || sumRes.data);
+      }
     } catch (e) {
       console.warn('Lỗi tải đánh giá:', e);
     } finally {

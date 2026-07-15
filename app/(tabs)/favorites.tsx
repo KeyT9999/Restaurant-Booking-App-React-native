@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, Text, View, FlatList, RefreshControl, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { favoriteApi } from '@/src/api/favorite.api';
 import { T } from '@/src/theme/tokens';
@@ -73,9 +73,11 @@ export default function FavoritesScreen() {
     }
   }, [isAuthenticated]);
 
-  useEffect(() => {
-    fetchFavorites();
-  }, [fetchFavorites]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchFavorites();
+    }, [fetchFavorites])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -120,7 +122,6 @@ export default function FavoritesScreen() {
             <RestaurantCard
               restaurant={item}
               variant="horizontal"
-              onPress={() => router.push(`/restaurants/${item.id}`)}
             />
           )}
         />

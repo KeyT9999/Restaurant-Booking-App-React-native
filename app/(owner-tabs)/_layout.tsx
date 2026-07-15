@@ -1,6 +1,6 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs, useRouter, Redirect, useSegments } from 'expo-router';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OwnerRestaurantProvider, useOwnerRestaurant } from '@/src/auth/OwnerRestaurantContext';
@@ -118,6 +118,29 @@ function OwnerTabContent() {
 }
 
 export default function OwnerTabLayout() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const segments = useSegments();
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: T.color.bg, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={T.color.primary} />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated || user?.role !== 'restaurant_owner') {
+    if (__DEV__) {
+      console.log('[Guard redirect]', {
+        from: '/' + segments.join('/'),
+        to: '/(tabs)',
+        role: user?.role || 'guest',
+        reason: 'User is not restaurant_owner or not authenticated',
+      });
+    }
+    return <Redirect href="/(tabs)" />;
+  }
+
   return <OwnerTabContent />;
 }
 

@@ -1,9 +1,36 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect, useSegments } from 'expo-router';
 import { Feather, FontAwesome, Ionicons } from '@expo/vector-icons';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { useAuth } from '@/src/auth/useAuth';
 
 export default function AdminLayout() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const segments = useSegments();
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#090A0F', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#e8955d" />
+      </View>
+    );
+  }
+
+  // Chỉ redirect khi user thực sự đang cố truy cập (admin) group
+  // Kiểm tra segment đầu tiên để xác định context navigation
+  if (!isAuthenticated || user?.role !== 'admin') {
+    if (__DEV__) {
+      console.log('[Guard redirect]', {
+        from: '/' + segments.join('/'),
+        to: '/(tabs)',
+        role: user?.role || 'guest',
+        reason: 'User is not admin or not authenticated',
+      });
+    }
+    return <Redirect href="/(tabs)" />;
+  }
+
+
   return (
     <Tabs 
       screenOptions={{ 
@@ -22,7 +49,7 @@ export default function AdminLayout() {
         }} 
       />
       <Tabs.Screen 
-        name="restaurants" 
+        name="manage-restaurants" 
         options={{ 
           title: 'Nhà hàng',
           tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} /> 

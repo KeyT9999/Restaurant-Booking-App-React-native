@@ -58,7 +58,7 @@ export default function AdminDashboardScreen() {
           </View>
           <TouchableOpacity onPress={() => {
             if (restaurantStats.pendingRestaurants > 0) {
-              router.push('/(admin)/restaurants/list?approvalStatus=pending');
+               router.push('/(admin)/manage-restaurants/list?approvalStatus=pending');
             } else {
               router.navigate('/(admin)/revenue/withdrawals' as any);
             }
@@ -149,7 +149,7 @@ export default function AdminDashboardScreen() {
           title="Phê duyệt nhà hàng"
           subtitle={`${restaurantStats.pendingRestaurants || 0} đang chờ`}
           badge={restaurantStats.pendingRestaurants}
-          onPress={() => router.push('/(admin)/restaurants/list?approvalStatus=pending')}
+          onPress={() => router.push('/(admin)/manage-restaurants/list?approvalStatus=pending')}
         />
         <ActionCard
           icon="credit-card"

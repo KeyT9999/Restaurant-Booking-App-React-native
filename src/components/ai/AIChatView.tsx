@@ -115,7 +115,7 @@ const buildRecentHistory = (messages: ChatMessage[]): AIChatHistoryItem[] =>
     .map((message) => ({ role: message.role, content: message.content }));
 
 const getFallbackText = (status: MessageStatus) =>
-  status === 'cancelled' ? 'Phan hoi da duoc dung.' : 'Phan hoi bi gian doan.';
+  status === 'cancelled' ? 'Phản hồi đã được dừng.' : 'Phản hồi bị gián đoạn.';
 
 const mapPendingAction = (payload: any): PendingAction | null => {
   const source = payload?.payload || payload;
@@ -129,7 +129,7 @@ const mapPendingAction = (payload: any): PendingAction | null => {
 
   return {
     id: String(source.pendingActionId || source.id),
-    restaurantName: source.restaurantName || source.restaurant?.name || 'Nha hang',
+    restaurantName: source.restaurantName || source.restaurant?.name || 'Nhà hàng',
     bookingDate: source.bookingDate,
     bookingTime: source.bookingTime,
     numberOfGuests: Number(source.numberOfGuests || 2),
@@ -145,7 +145,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
   subtitle,
   greeting,
   suggestions,
-  placeholder = 'Nhap tin nhan gui toi AI...',
+  placeholder = 'Nhập tin nhắn gửi tới AI...',
   pageContext = null,
   ownerContext = null,
   adminContext = null,
@@ -236,7 +236,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
               status: 'streaming',
               toolStatus: {
                 tool: data?.tool,
-                label: data?.label || 'Dang tai du lieu...',
+                label: data?.label || 'Đang tải dữ liệu...',
                 status: 'running',
               },
               toolError: null,
@@ -276,7 +276,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
       });
 
       if (!receivedText && !receivedResult) {
-        throw new Error('Tro ly khong tra ve noi dung.');
+        throw new Error('Trợ lý không trả về nội dung.');
       }
 
       updateAssistantMessage(assistantMessageId, (assistant) => ({
@@ -323,7 +323,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
     if (message.length > MAX_MESSAGE_LENGTH) {
       setError({
         code: 'INVALID_REQUEST',
-        message: `Tin nhan khong duoc vuot qua ${MAX_MESSAGE_LENGTH} ky tu.`,
+        message: `Tin nhắn không được vượt quá ${MAX_MESSAGE_LENGTH} ký tự.`,
         retry: null,
       });
       return;
@@ -373,14 +373,14 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
       const res = await aiApi.confirmPendingAction(actionId);
 
       if (!res.success) {
-        showToast(res.message || 'Xac nhan that bai', 'error');
+        showToast(res.message || 'Xác nhận thất bại', 'error');
         return;
       }
 
-      showToast('Xac nhan dat ban thanh cong!', 'success');
+      showToast('Xác nhận đặt bàn thành công!', 'success');
       updateAssistantMessage(messageId, (assistant) => ({
         ...assistant,
-        content: `${assistant.content}\n\nDat ban cua ban da duoc xac nhan thanh cong!`.trim(),
+        content: `${assistant.content}\n\nĐặt bàn của bạn đã được xác nhận thành công!`.trim(),
         pendingAction: assistant.pendingAction
           ? { ...assistant.pendingAction, status: 'confirmed' }
           : assistant.pendingAction,
@@ -396,30 +396,30 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
     } catch (confirmError: any) {
       const message =
         confirmError?.response?.data?.message ||
-        'Co loi xay ra khi xac nhan dat ban.';
+        'Có lỗi xảy ra khi xác nhận đặt bàn.';
       showToast(message, 'error');
     }
   };
 
   const handleCancelAction = async (messageId: string, actionId: string) => {
     try {
-      const res = await aiApi.cancelPendingAction(actionId, 'Nguoi dung huy tren chatbot');
+      const res = await aiApi.cancelPendingAction(actionId, 'Người dùng hủy trên chatbot');
 
       if (!res.success) {
-        showToast(res.message || 'Huy yeu cau that bai', 'error');
+        showToast(res.message || 'Hủy yêu cầu thất bại', 'error');
         return;
       }
 
-      showToast('Da huy yeu cau giu ban.', 'info');
+      showToast('Đã hủy yêu cầu giữ bàn.', 'info');
       updateAssistantMessage(messageId, (assistant) => ({
         ...assistant,
-        content: `${assistant.content}\n\nYeu cau dat ban nay da bi huy bo.`.trim(),
+        content: `${assistant.content}\n\nYêu cầu đặt bàn này đã bị hủy bỏ.`.trim(),
         pendingAction: assistant.pendingAction
           ? { ...assistant.pendingAction, status: 'cancelled' }
           : assistant.pendingAction,
       }));
     } catch {
-      showToast('Khong the huy bo yeu cau giu ban luc nay.', 'error');
+      showToast('Không thể hủy bỏ yêu cầu giữ bàn lúc này.', 'error');
     }
   };
 
@@ -471,7 +471,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
         <View style={styles.resultBody}>
           <View style={styles.resultHeaderRow}>
             <Text style={styles.resultTitle} numberOfLines={1}>
-              {restaurant?.name || 'Nha hang'}
+              {restaurant?.name || 'Nhà hàng'}
             </Text>
             {ratingText ? (
               <View style={styles.resultRating}>
@@ -495,7 +495,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
 
           <View style={styles.resultFooterRow}>
             {priceText ? <Text style={styles.resultPrice}>{priceText}</Text> : <View />}
-            <Text style={styles.resultLinkText}>Xem chi tiet</Text>
+            <Text style={styles.resultLinkText}>Xem chi tiết</Text>
           </View>
         </View>
       </Pressable>
@@ -513,7 +513,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
       if (restaurants.length === 0) {
         return (
           <View key={key} style={styles.emptyResultBox}>
-            <Text style={styles.emptyResultText}>Khong tim thay nha hang phu hop.</Text>
+            <Text style={styles.emptyResultText}>Không tìm thấy nhà hàng phù hợp.</Text>
           </View>
         );
       }
@@ -532,9 +532,9 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
       return (
         <View key={key} style={styles.resultGroup}>
           <View style={styles.resultInfoBox}>
-            <Text style={styles.resultInfoTitle}>Goi y cho ban</Text>
+            <Text style={styles.resultInfoTitle}>Gợi ý cho bạn</Text>
             <Text style={styles.resultInfoText}>
-              {result?.payload?.message || 'Day la mot vai lua chon phu hop tu BookEat.'}
+              {result?.payload?.message || 'Đây là một vài lựa chọn phù hợp từ BookEat.'}
             </Text>
           </View>
 
@@ -544,7 +544,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
           ) : (
             <View style={styles.emptyResultBox}>
               <Text style={styles.emptyResultText}>
-                Chua tim thay lua chon phu hop ngay luc nay. Thu them khu vuc, mon an hoac muc gia cu the hon.
+                Chưa tìm thấy lựa chọn phù hợp ngay lúc này. Thử thêm khu vực, món ăn hoặc mức giá cụ thể hơn.
               </Text>
             </View>
           )}
@@ -611,7 +611,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                     {item.status === 'streaming' && !item.content ? (
                       <View style={styles.streamingRow}>
                         <ActivityIndicator size="small" color={T.color.primary} />
-                        <Text style={styles.streamingText}>Dang phan hoi...</Text>
+                        <Text style={styles.streamingText}>Đang phản hồi...</Text>
                       </View>
                     ) : (
                       <Text style={styles.messageText}>{item.content}</Text>
@@ -626,7 +626,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                             : styles.messageStateMuted,
                         ]}
                       >
-                        {item.status === 'failed' ? 'Phan hoi bi gian doan' : 'Da dung'}
+                        {item.status === 'failed' ? 'Phản hồi bị gián đoạn' : 'Đã dừng'}
                       </Text>
                     )}
                   </View>
@@ -653,28 +653,28 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                   <View style={styles.previewCard}>
                     <View style={styles.previewHeader}>
                       <FontAwesome name="calendar-check-o" size={16} color={T.color.primary} />
-                      <Text style={styles.previewTitle}>Xac nhan dat ban cua ban</Text>
+                      <Text style={styles.previewTitle}>Xác nhận đặt bàn của bạn</Text>
                     </View>
 
                     <Text style={styles.previewRestName}>{item.pendingAction.restaurantName}</Text>
 
                     <View style={styles.previewDetails}>
                       <Text style={styles.previewDetailText}>
-                        Ngay: {formatDate(item.pendingAction.bookingDate)}
+                        Ngày: {formatDate(item.pendingAction.bookingDate)}
                       </Text>
                       <Text style={styles.previewDetailText}>
-                        Gio: {item.pendingAction.bookingTime}
+                        Giờ: {item.pendingAction.bookingTime}
                       </Text>
                       <Text style={styles.previewDetailText}>
-                        So khach: {item.pendingAction.numberOfGuests} nguoi
+                        Số khách: {item.pendingAction.numberOfGuests} người
                       </Text>
                       {item.pendingAction.tableNumbers.length > 0 && (
                         <Text style={styles.previewDetailText}>
-                          Ban: {item.pendingAction.tableNumbers.join(', ')}
+                          Bàn: {item.pendingAction.tableNumbers.join(', ')}
                         </Text>
                       )}
                       <Text style={styles.previewDetailText}>
-                        Tien coc:{' '}
+                        Tiền cọc:{' '}
                         <Text style={styles.previewDepositText}>
                           {formatCurrency(item.pendingAction.depositAmount)}
                         </Text>
@@ -687,13 +687,13 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                           onPress={() => handleCancelAction(item.id, item.pendingAction!.id)}
                           style={[styles.actionBtn, styles.actionCancelBtn]}
                         >
-                          <Text style={styles.actionCancelText}>Huy bo</Text>
+                          <Text style={styles.actionCancelText}>Hủy bỏ</Text>
                         </Pressable>
                         <Pressable
                           onPress={() => handleConfirmAction(item.id, item.pendingAction!.id)}
                           style={[styles.actionBtn, styles.actionConfirmBtn]}
                         >
-                          <Text style={styles.actionConfirmText}>Xac nhan ngay</Text>
+                          <Text style={styles.actionConfirmText}>Xác nhận ngay</Text>
                         </Pressable>
                       </View>
                     ) : (
@@ -707,8 +707,8 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                           ]}
                         >
                           {item.pendingAction.status === 'confirmed'
-                            ? 'DA XAC NHAN'
-                            : 'DA HUY BO'}
+                            ? 'ĐÃ XÁC NHẬN'
+                            : 'ĐÃ HỦY BỎ'}
                         </Text>
                       </View>
                     )}
@@ -728,12 +728,12 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
 
         {error && (
           <View style={styles.errorCard}>
-            <Text style={styles.errorTitle}>Co su co voi tro ly AI</Text>
+            <Text style={styles.errorTitle}>Có sự cố với trợ lý AI</Text>
             <Text style={styles.errorText}>{error.message}</Text>
             {error.retry && (
               <Pressable style={styles.retryBtn} onPress={retryStream}>
                 <FontAwesome name="refresh" size={14} color={T.color.primary} />
-                <Text style={styles.retryText}>Thu lai</Text>
+                <Text style={styles.retryText}>Thử lại</Text>
               </Pressable>
             )}
           </View>
@@ -742,7 +742,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
 
       {showSuggestions && (
         <View style={styles.chipsContainer}>
-          <Text style={styles.chipsTitle}>Goi y nhanh:</Text>
+          <Text style={styles.chipsTitle}>Gợi ý nhanh:</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}

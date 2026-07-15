@@ -66,6 +66,28 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(owner-tabs)" />
+        {/* ─── Customer-facing screens ─── */}
+        <Stack.Screen name="restaurants/list" options={{ headerShown: false }} />
+        <Stack.Screen name="restaurants/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="restaurants/menu" options={{ headerShown: false }} />
+        <Stack.Screen name="restaurants/reviews" options={{ headerShown: false }} />
+        <Stack.Screen name="search" options={{ headerShown: false }} />
+        <Stack.Screen name="recommendation" options={{ headerShown: false }} />
+        <Stack.Screen name="notifications" options={{ headerShown: false }} />
+        <Stack.Screen name="vouchers" options={{ headerShown: false }} />
+        <Stack.Screen name="vouchers/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="booking/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="booking/summary" options={{ headerShown: false }} />
+        <Stack.Screen name="booking-cancel/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="review/write" options={{ headerShown: false }} />
+        <Stack.Screen name="waitlist/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="waitlist/join" options={{ headerShown: false }} />
+        <Stack.Screen name="chat/[restaurantId]" options={{ headerShown: false }} />
+        <Stack.Screen name="conversations/index" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/index" options={{ headerShown: false }} />
+        <Stack.Screen name="rewards" options={{ headerShown: false }} />
+        <Stack.Screen name="ai-chat" options={{ headerShown: false }} />
+        {/* ─── Owner-specific screens ─── */}
         <Stack.Screen name="owner/booking/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="owner/menu/item-form" options={{ headerShown: false }} />
         <Stack.Screen name="owner/menu/category-form" options={{ headerShown: false }} />
@@ -83,6 +105,7 @@ function RootLayoutNav() {
         <Stack.Screen name="owner/restaurant/create" options={{ headerShown: false }} />
         <Stack.Screen name="owner/restaurant/[id]/edit" options={{ headerShown: false }} />
         <Stack.Screen name="owner/billing/index" options={{ headerShown: false }} />
+        {/* ─── Admin ─── */}
         <Stack.Screen name="(admin)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>

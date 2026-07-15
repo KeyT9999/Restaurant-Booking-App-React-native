@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, Text, View, FlatList, RefreshControl, Pressable, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { bookingApi } from '@/src/api/booking.api';
 import { T } from '@/src/theme/tokens';
@@ -44,9 +44,11 @@ export default function BookingsListScreen() {
     }
   }, [isAuthenticated, activeTab]);
 
-  useEffect(() => {
-    fetchBookings();
-  }, [fetchBookings]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchBookings();
+    }, [fetchBookings])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

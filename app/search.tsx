@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, FlatList, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { restaurantApi as restApi } from '@/src/api/restaurant.api';
 import { T } from '@/src/theme/tokens';
 import { typography } from '@/src/theme/typography';
@@ -14,6 +14,8 @@ import { Restaurant } from '@/src/types/restaurant.types';
 
 export default function SearchScreen() {
   const router = useRouter();
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
+  const shouldAutoFocus = focus === 'true';
 
   const [searchText, setSearchText] = useState('');
   const debouncedSearch = useDebounce(searchText, 400);
@@ -95,7 +97,7 @@ export default function SearchScreen() {
             placeholderTextColor={T.color.placeholder}
             value={searchText}
             onChangeText={setSearchText}
-            autoFocus
+            autoFocus={shouldAutoFocus}
             autoCapitalize="none"
           />
           {searchText.length > 0 && (
@@ -197,7 +199,6 @@ export default function SearchScreen() {
             <RestaurantCard
               restaurant={item}
               variant="horizontal"
-              onPress={() => router.push(`/restaurants/${item.id}`)}
             />
           )}
         />
