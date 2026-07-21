@@ -55,6 +55,47 @@ export interface Booking {
   finalAmount: number;
   createdAt: string;
   updatedAt: string;
+  cancellationReason?: string | null;
+  cancelledAt?: string | null;
+  cancellationPolicyCode?: string | null;
+  cancellationFeeRateBasisPoints?: number;
+  cancellationFeeAmount?: number;
+  refundAmount?: number;
+  refundMethod?: 'BOOKEAT_WALLET' | string | null;
+  refundStatus?: string | null;
+}
+
+export interface CancellationPreview {
+  canCancel: boolean;
+  bookingDateTime: string;
+  serverTime: string;
+  remainingMinutes: number;
+  policyCode: 'FULL_REFUND' | 'PARTIAL_REFUND' | 'CANCELLATION_CLOSED';
+  depositPaid: number;
+  cancellationFeeRate: number;
+  cancellationFeeRateBasisPoints: number;
+  cancellationFeeAmount: number;
+  refundAmount: number;
+  refundMethod: 'BOOKEAT_WALLET';
+  message: string;
+}
+
+export interface CancellationResult {
+  bookingId: string;
+  bookingStatus: 'cancelled';
+  cancelledAt: string;
+  policyCode: string;
+  depositPaid: number;
+  cancellationFeeRate: number;
+  cancellationFeeRateBasisPoints: number;
+  cancellationFeeAmount: number;
+  refundAmount: number;
+  refundMethod: 'BOOKEAT_WALLET';
+  refundStatus: string;
+  walletBalance: number;
+  walletTransactionId: string | null;
+  refundId: string | null;
+  alreadyProcessed: boolean;
 }
 
 export interface BookingPayload {

@@ -76,6 +76,7 @@ function RootLayoutNav() {
         <Stack.Screen name="notifications" options={{ headerShown: false }} />
         <Stack.Screen name="vouchers" options={{ headerShown: false }} />
         <Stack.Screen name="vouchers/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="wallet/index" options={{ headerShown: false }} />
         <Stack.Screen name="booking/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="booking/summary" options={{ headerShown: false }} />
         <Stack.Screen name="booking-cancel/[id]" options={{ headerShown: false }} />

@@ -6,6 +6,7 @@ import { bookingApi } from '@/src/api/booking.api';
 import { restaurantApi } from '@/src/api/restaurant.api';
 import { voucherApi } from '@/src/api/voucher.api';
 import { paymentApi } from '@/src/api/payment.api';
+import { walletApi } from '@/src/api/wallet.api';
 import { T } from '@/src/theme/tokens';
 import { typography } from '@/src/theme/typography';
 import { BackButton } from '@/src/components/ui/BackButton';
@@ -73,6 +74,9 @@ export default function BookingSummary() {
 
   // Booking process state
   const [submitting, setSubmitting] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [useWalletBalance, setUseWalletBalance] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
 
   const occasions = [
     { label: 'Sinh nhật 🎂', value: 'birthday' },
@@ -100,6 +104,12 @@ export default function BookingSummary() {
     }
     fetchMenu();
   }, [restaurantId]);
+
+  useEffect(() => {
+    walletApi.getMyWallet()
+      .then((response) => setWalletBalance(response.data.wallet.balance || 0))
+      .catch(() => setWalletBalance(0));
+  }, []);
 
   // Adjust pre-order quantity
   const handlePreOrderChange = (itemId: string, diff: number) => {
@@ -184,6 +194,10 @@ export default function BookingSummary() {
       showToast('Vui lòng điền đầy đủ thông tin liên hệ', 'info');
       return;
     }
+    if (!policyAccepted) {
+      showToast('Vui lòng xác nhận chính sách hủy và hoàn tiền', 'info');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -223,6 +237,7 @@ export default function BookingSummary() {
           const payRes = await paymentApi.createPayment({
             targetType: 'booking',
             targetId: booking.id,
+            useWalletBalance,
           });
 
           if (payRes.success && payRes.data) {
@@ -438,6 +453,22 @@ export default function BookingSummary() {
               * Lưu ý: Bạn cần thanh toán cọc bàn và cọc món ăn tổng cộng {formatCurrency(finalAmount)} bây giờ. Tiền món ăn còn lại ({formatCurrency(preOrderTotalAmount - foodDepositAmount)}) sẽ được thanh toán trực tiếp tại nhà hàng khi bạn đến dùng bữa.
             </Text>
           )}
+
+          <Pressable onPress={() => setUseWalletBalance((value) => !value)} style={styles.choiceRow}>
+            <FontAwesome name={useWalletBalance ? 'check-square' : 'square-o'} size={21} color={useWalletBalance ? T.color.primary : T.color.text3} />
+            <View style={styles.choiceCopy}>
+              <Text style={styles.choiceTitle}>Dùng số dư Ví BookEat</Text>
+              <Text style={styles.choiceDescription}>Khả dụng: {formatCurrency(walletBalance)}. Nếu chưa đủ, phần còn lại thanh toán qua PayOS.</Text>
+            </View>
+          </Pressable>
+
+          <Pressable onPress={() => setPolicyAccepted((value) => !value)} style={styles.choiceRow}>
+            <FontAwesome name={policyAccepted ? 'check-square' : 'square-o'} size={21} color={policyAccepted ? T.color.primary : T.color.text3} />
+            <View style={styles.choiceCopy}>
+              <Text style={styles.choiceTitle}>Tôi đồng ý chính sách hủy</Text>
+              <Text style={styles.choiceDescription}>Hủy trước ít nhất 2 giờ: hoàn 100% tiền cọc. Hủy dưới 2 giờ: phí 30%, phần còn lại hoàn vào Ví BookEat. Không thể hủy khi đã đến giờ.</Text>
+            </View>
+          </Pressable>
         </View>
       </ScrollView>
 
@@ -448,9 +479,9 @@ export default function BookingSummary() {
           <Text style={styles.bottomVal}>{formatCurrency(finalAmount)}</Text>
         </View>
         <Button
-          label="Xác nhận & Thanh toán"
+          label={useWalletBalance ? 'Xác nhận & dùng Ví' : 'Xác nhận & Thanh toán'}
           onPress={handleSubmitBooking}
-          variant={submitting ? 'loading' : 'primary'}
+          variant={submitting ? 'loading' : policyAccepted ? 'primary' : 'disabled'}
           style={styles.submitBtn}
         />
       </View>
@@ -687,6 +718,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
   },
+  choiceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: T.space.md,
+    marginTop: T.space.lg,
+    paddingTop: T.space.md,
+    borderTopWidth: 1,
+    borderTopColor: T.color.border,
+  },
+  choiceCopy: { flex: 1 },
+  choiceTitle: { color: T.color.text1, fontSize: 13, fontWeight: '700' },
+  choiceDescription: { color: T.color.text2, fontSize: 11, lineHeight: 17, marginTop: 4 },
   bottomBar: {
     position: 'absolute',
     bottom: 0,

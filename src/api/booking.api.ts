@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { BookingPayload } from '../types/booking.types';
+import { BookingPayload, CancellationPreview, CancellationResult } from '../types/booking.types';
 
 export const bookingApi = {
   checkAvailability: async (payload: { restaurantId: string; bookingDate: string; bookingTime: string; numberOfGuests: number }): Promise<any> => {
@@ -32,8 +32,13 @@ export const bookingApi = {
     return response.data;
   },
 
-  cancelBooking: async (id: string, reason: string): Promise<any> => {
-    const response = await apiClient.delete(`/bookings/${id}/cancel`, { data: { reason } });
+  getCancellationPreview: async (id: string): Promise<{ success: boolean; data: CancellationPreview }> => {
+    const response = await apiClient.get(`/bookings/${id}/cancellation-preview`);
+    return response.data;
+  },
+
+  cancelBooking: async (id: string, reason: string): Promise<{ success: boolean; message?: string; data: CancellationResult }> => {
+    const response = await apiClient.post(`/bookings/${id}/cancel`, { reason });
     return response.data;
   },
 };

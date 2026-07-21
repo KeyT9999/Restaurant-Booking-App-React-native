@@ -249,23 +249,40 @@ export default function HomeScreen() {
         </Pressable>
 
         {/* ─── Suggestions Section ─── */}
-        <SectionHeader title="Nhà hàng nổi bật" style={styles.sectionHeader} />
+        <SectionHeader
+          title="Nhà hàng"
+          action="Xem tất cả"
+          onAction={() => router.push('/restaurants/list')}
+          style={styles.sectionHeader}
+        />
         <View style={styles.suggestionsList}>
           {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
+            Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} height={100} borderRadius={16} style={{ marginBottom: 12 }} />
             ))
           ) : suggestionRestaurants.length > 0 ? (
-            suggestionRestaurants.map((restaurant, index) => {
-              const rId = (restaurant as any).restaurantId || restaurant.id || (restaurant as any)._id || '';
-              return (
-                <RestaurantCard
-                  key={rId || index.toString()}
-                  restaurant={restaurant}
-                  variant="horizontal"
-                />
-              );
-            })
+            <>
+              {suggestionRestaurants.slice(0, 4).map((restaurant, index) => {
+                const rId = (restaurant as any).restaurantId || restaurant.id || (restaurant as any)._id || '';
+                return (
+                  <RestaurantCard
+                    key={rId || index.toString()}
+                    restaurant={restaurant}
+                    variant="horizontal"
+                  />
+                );
+              })}
+              
+              {suggestionRestaurants.length > 4 && (
+                <Pressable
+                  onPress={() => router.push('/restaurants/list')}
+                  style={styles.viewAllButton}
+                >
+                  <Text style={styles.viewAllButtonText}>Xem tất cả nhà hàng</Text>
+                  <FontAwesome name="chevron-right" size={12} color={T.color.primary} />
+                </Pressable>
+              )}
+            </>
           ) : (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>Không tìm thấy nhà hàng nào phù hợp</Text>
@@ -492,6 +509,24 @@ const styles = StyleSheet.create({
   },
   suggestionsList: {
     paddingHorizontal: T.space.lg,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(212, 150, 83, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 150, 83, 0.15)',
+    borderRadius: T.radius.md,
+    paddingVertical: 12,
+    marginTop: T.space.xs,
+    marginBottom: T.space.lg,
+    gap: 8,
+  },
+  viewAllButtonText: {
+    color: T.color.primary,
+    fontWeight: '700',
+    fontSize: 14,
   },
   emptyContainer: {
     backgroundColor: T.color.card,
