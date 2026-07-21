@@ -13,6 +13,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import { Booking } from '@/src/types/booking.types';
 import * as WebBrowser from 'expo-web-browser';
 import { paymentApi } from '@/src/api/payment.api';
+import { walletApi } from '@/src/api/wallet.api';
 
 export default function BookingDetailScreen() {
   const router = useRouter();
@@ -22,6 +23,8 @@ export default function BookingDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [paying, setPaying] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [useWalletBalance, setUseWalletBalance] = useState(false);
 
   const handlePayment = async () => {
     if (!booking) return;
@@ -30,6 +33,7 @@ export default function BookingDetailScreen() {
       const payRes = await paymentApi.createPayment({
         targetType: 'booking',
         targetId: booking.id,
+        useWalletBalance,
       });
 
       if (payRes.success && payRes.data) {
@@ -41,7 +45,10 @@ export default function BookingDetailScreen() {
           loadBookingDetail();
           showToast('Đang cập nhật trạng thái thanh toán...', 'info');
         } else {
-          showToast('Không tìm thấy liên kết thanh toán', 'error');
+          await loadBookingDetail();
+          const balance = Number(payment.walletBalance ?? Math.max(0, walletBalance - booking.finalAmount));
+          setWalletBalance(balance);
+          showToast('Thanh toán tiền cọc thành công bằng Ví BookEat', 'success');
         }
       } else {
         showToast('Yêu cầu thanh toán thất bại', 'error');
@@ -74,6 +81,12 @@ export default function BookingDetailScreen() {
   useEffect(() => {
     loadBookingDetail();
   }, [loadBookingDetail]);
+
+  useEffect(() => {
+    walletApi.getMyWallet()
+      .then((response) => setWalletBalance(response.data.wallet.balance || 0))
+      .catch(() => setWalletBalance(0));
+  }, []);
 
   if (loading) {
     return (
@@ -188,7 +201,7 @@ export default function BookingDetailScreen() {
                   <View style={[styles.stepDot, { backgroundColor: T.color.error }]} />
                   <View style={styles.stepContent}>
                     <Text style={[styles.stepTitle, { color: T.color.error }]}>Đã hủy cuộc hẹn</Text>
-                    <Text style={styles.stepSub}>Lý do: {booking.specialRequests || 'Khách hàng yêu cầu hủy'}</Text>
+                    <Text style={styles.stepSub}>Lý do: {booking.cancellationReason || 'Khách hàng yêu cầu hủy'}</Text>
                   </View>
                 </View>
               </>
@@ -286,15 +299,30 @@ export default function BookingDetailScreen() {
           </View>
         </View>
 
+        {booking.status === 'cancelled' && (
+          <View style={styles.refundCard}>
+            <Text style={styles.sectionTitle}>Quyết toán hủy booking</Text>
+            <View style={styles.billRow}><Text style={styles.billLabel}>Phí hủy</Text><Text style={[styles.billVal, { color: T.color.error }]}>{formatCurrency(booking.cancellationFeeAmount || 0)}</Text></View>
+            <View style={styles.billRow}><Text style={styles.billLabel}>Đã hoàn vào Ví BookEat</Text><Text style={[styles.billVal, { color: T.color.success }]}>{formatCurrency(booking.refundAmount || 0)}</Text></View>
+            <Pressable onPress={() => router.push('/wallet' as any)} style={styles.walletLink}><Text style={styles.walletLinkText}>Xem số dư và lịch sử Ví BookEat</Text><FontAwesome name="angle-right" size={18} color={T.color.primary} /></Pressable>
+          </View>
+        )}
+
         {/* ─── Actions Button ─── */}
         <View style={styles.actionContainer}>
           {!booking.depositPaid && booking.finalAmount > 0 && ['pending', 'confirmed'].includes(booking.status) && (
-            <Button
-              label="Thanh toán đặt cọc ngay"
-              onPress={handlePayment}
-              variant={paying ? 'loading' : 'primary'}
-              style={styles.payBtn}
-            />
+            <>
+              <Pressable onPress={() => setUseWalletBalance((value) => !value)} style={styles.walletChoice}>
+                <FontAwesome name={useWalletBalance ? 'check-square' : 'square-o'} size={21} color={useWalletBalance ? T.color.primary : T.color.text3} />
+                <View style={{ flex: 1 }}><Text style={styles.walletChoiceTitle}>Dùng Ví BookEat</Text><Text style={styles.walletChoiceText}>Số dư khả dụng: {formatCurrency(walletBalance)}. Phần thiếu sẽ thanh toán qua PayOS.</Text></View>
+              </Pressable>
+              <Button
+                label={useWalletBalance ? 'Thanh toán bằng Ví + PayOS' : 'Thanh toán đặt cọc ngay'}
+                onPress={handlePayment}
+                variant={paying ? 'loading' : 'primary'}
+                style={styles.payBtn}
+              />
+            </>
           )}
 
           {canCancel() && (
@@ -578,6 +606,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  refundCard: { backgroundColor: T.color.card, borderWidth: 1, borderColor: 'rgba(16,185,129,0.22)', borderRadius: T.radius.lg, marginHorizontal: T.space.lg, marginTop: T.space.lg, padding: T.space.lg },
+  walletLink: { minHeight: 44, marginTop: T.space.sm, paddingTop: T.space.md, borderTopWidth: 1, borderTopColor: T.color.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  walletLinkText: { color: T.color.primary, fontSize: 13, fontWeight: '700' },
+  walletChoice: { flexDirection: 'row', alignItems: 'flex-start', gap: T.space.md, padding: T.space.md, marginBottom: T.space.md, borderRadius: T.radius.md, borderWidth: 1, borderColor: T.color.border, backgroundColor: T.color.card },
+  walletChoiceTitle: { color: T.color.text1, fontSize: 13, fontWeight: '700' },
+  walletChoiceText: { color: T.color.text2, fontSize: 11, lineHeight: 16, marginTop: 3 },
   actionContainer: {
     paddingHorizontal: T.space.lg,
     marginTop: T.space.xl,

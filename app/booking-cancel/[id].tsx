@@ -1,263 +1,188 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, ActivityIndicator } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { FontAwesome } from '@expo/vector-icons';
 import { bookingApi } from '@/src/api/booking.api';
-import { T } from '@/src/theme/tokens';
-import { typography } from '@/src/theme/typography';
+import { CancellationPreview } from '@/src/types/booking.types';
 import { BackButton } from '@/src/components/ui/BackButton';
 import { Button } from '@/src/components/ui/Button';
-import { Chip } from '@/src/components/ui/Chip';
 import { useToast } from '@/src/components/ui/Toast';
-import { FontAwesome } from '@expo/vector-icons';
+import { formatCurrency } from '@/src/utils/format';
+import { T } from '@/src/theme/tokens';
+import { typography } from '@/src/theme/typography';
+
+const REASONS = [
+  'Thay đổi kế hoạch',
+  'Tìm thấy nhà hàng khác phù hợp hơn',
+  'Có việc đột xuất',
+  'Thời tiết không thuận lợi',
+  'Lý do khác',
+];
 
 export default function CancelBookingScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { showToast } = useToast();
-
   const [loading, setLoading] = useState(true);
-  const [restaurantName, setRestaurantName] = useState('');
-  
-  // Selection states
-  const [selectedReason, setSelectedReason] = useState('Thay đổi kế hoạch');
+  const [restaurantName, setRestaurantName] = useState('Nhà hàng BookEat');
+  const [preview, setPreview] = useState<CancellationPreview | null>(null);
+  const [error, setError] = useState('');
+  const [reason, setReason] = useState(REASONS[0]);
   const [customReason, setCustomReason] = useState('');
+  const [acknowledged, setAcknowledged] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const predefinedReasons = [
-    'Thay đổi kế hoạch',
-    'Tìm thấy quán khác thích hợp hơn',
-    'Bận việc đột xuất',
-    'Thời tiết không thuận lợi',
-    'Lý do cá nhân khác',
-  ];
-
-  const loadBookingInfo = useCallback(async () => {
+  const load = useCallback(async () => {
     if (!id) return;
+    setLoading(true);
+    setError('');
     try {
-      const res = await bookingApi.getById(id);
-      if (res.success && res.data) {
-        setRestaurantName(res.data.restaurant?.name || 'Nhà hàng BookEat');
+      const [bookingRes, previewRes] = await Promise.all([
+        bookingApi.getById(id),
+        bookingApi.getCancellationPreview(id),
+      ]);
+      if (bookingRes.success && bookingRes.data) {
+        setRestaurantName(bookingRes.data.restaurant?.name || 'Nhà hàng BookEat');
       }
-    } catch (error) {
-      console.warn('Lỗi tải thông tin đặt bàn để hủy:', error);
+      setPreview(previewRes.data);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Không thể tải chính sách hủy lúc này.');
     } finally {
       setLoading(false);
     }
   }, [id]);
 
-  useEffect(() => {
-    loadBookingInfo();
-  }, [loadBookingInfo]);
+  useEffect(() => { load(); }, [load]);
 
-  const handleCancelBooking = async () => {
-    if (!id) return;
-    
-    const finalReason = selectedReason === 'Lý do cá nhân khác' 
-      ? (customReason.trim() || 'Lý do cá nhân khác')
-      : selectedReason;
-
+  const submit = async () => {
+    if (!id || !preview?.canCancel || submitting || !acknowledged) return;
+    const finalReason = reason === 'Lý do khác' ? customReason.trim() : reason;
+    if (!finalReason) {
+      showToast('Vui lòng nhập lý do hủy đặt bàn', 'info');
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await bookingApi.cancelBooking(id, finalReason);
-      if (res.success) {
-        showToast('Hủy cuộc hẹn đặt bàn thành công', 'success');
-        
-        // Navigate back to Bookings tab
-        router.replace('/(tabs)/bookings');
-      } else {
-        showToast(res.message || 'Hủy cuộc hẹn thất bại', 'error');
-      }
-    } catch (error: any) {
-      const msg = error.response?.data?.message || 'Có lỗi xảy ra khi hủy đặt bàn';
-      showToast(msg, 'error');
+      const response = await bookingApi.cancelBooking(id, finalReason);
+      const result = response.data;
+      showToast(
+        result.refundAmount > 0
+          ? `Đã hoàn ${formatCurrency(result.refundAmount)} vào Ví BookEat`
+          : 'Đã hủy đặt bàn thành công',
+        'success',
+      );
+      router.replace(`/booking/${id}`);
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Không thể hủy đặt bàn', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={T.color.primary} />
-      </View>
-    );
-  }
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={T.color.primary} /></View>;
 
   return (
     <View style={styles.container}>
-      {/* ─── Header ─── */}
       <View style={styles.header}>
-        <BackButton onPress={() => router.back()} style={styles.backBtn} />
-        <View style={styles.headerTextWrapper}>
-          <Text style={[typography.titleSM, styles.title]} numberOfLines={1}>Hủy đặt bàn</Text>
-        </View>
+        <BackButton onPress={() => router.back()} style={styles.backButton} />
+        <Text style={[typography.titleSM, styles.title]}>Hủy đặt bàn</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.warningBox}>
-          <FontAwesome name="exclamation-triangle" size={24} color={T.color.primary} style={{ marginBottom: 8 }} />
-          <Text style={styles.warningTitle}>Lưu ý quan trọng</Text>
-          <Text style={styles.warningText}>
-            Yêu cầu hủy bàn tại <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>{restaurantName}</Text> sẽ được thực hiện ngay lập tức. Tiền đặt cọc (nếu có) sẽ được hoàn lại tự động theo chính sách hoàn tiền của nhà hàng.
-          </Text>
-        </View>
-
-        <Text style={[typography.titleSM, styles.sectionTitle]}>Vui lòng chọn lý do hủy đặt bàn</Text>
-        
-        <View style={styles.reasonsGrid}>
-          {predefinedReasons.map((reason) => (
-            <Chip
-              key={reason}
-              label={reason}
-              active={selectedReason === reason}
-              onPress={() => setSelectedReason(reason)}
-              style={styles.reasonChip}
-            />
-          ))}
-        </View>
-
-        {selectedReason === 'Lý do cá nhân khác' && (
-          <View style={styles.customReasonBox}>
-            <Text style={styles.fieldLabel}>Chi tiết lý do khác</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nhập lý do chi tiết của bạn tại đây..."
-              placeholderTextColor={T.color.placeholder}
-              value={customReason}
-              onChangeText={setCustomReason}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {error || !preview ? (
+          <View style={styles.stateCard}>
+            <FontAwesome name="exclamation-circle" size={28} color={T.color.error} />
+            <Text style={styles.stateTitle}>Chưa thể kiểm tra phí hủy</Text>
+            <Text style={styles.stateText}>{error}</Text>
+            <Button label="Thử lại" variant="outline" size="md" onPress={load} />
           </View>
+        ) : (
+          <>
+            <View style={[styles.notice, !preview.canCancel && styles.closedNotice]}>
+              <FontAwesome name={preview.canCancel ? 'info-circle' : 'ban'} size={20} color={preview.canCancel ? T.color.primary : T.color.error} />
+              <View style={styles.noticeCopy}>
+                <Text style={styles.noticeTitle}>{restaurantName}</Text>
+                <Text style={styles.noticeText}>{preview.message}</Text>
+              </View>
+            </View>
+
+            <View style={styles.moneyCard}>
+              <Text style={styles.eyebrow}>QUYẾT TOÁN KHI HỦY</Text>
+              <MoneyRow label="Tiền cọc đã thanh toán" value={preview.depositPaid} />
+              <MoneyRow label={`Phí hủy (${preview.cancellationFeeRateBasisPoints / 100}%)`} value={preview.cancellationFeeAmount} negative />
+              <View style={styles.divider} />
+              <View style={styles.refundRow}>
+                <Text style={styles.refundLabel}>Hoàn vào Ví BookEat</Text>
+                <Text style={styles.refundValue}>{formatCurrency(preview.refundAmount)}</Text>
+              </View>
+              <Text style={styles.serverNote}>Số tiền do hệ thống BookEat tính tại thời điểm hiện tại.</Text>
+            </View>
+
+            {preview.canCancel && (
+              <>
+                <Text style={styles.sectionTitle}>Lý do hủy</Text>
+                <View style={styles.reasonList}>
+                  {REASONS.map((item) => (
+                    <Pressable key={item} onPress={() => setReason(item)} style={[styles.reason, reason === item && styles.reasonActive]}>
+                      <FontAwesome name={reason === item ? 'dot-circle-o' : 'circle-o'} size={18} color={reason === item ? T.color.primary : T.color.text3} />
+                      <Text style={[styles.reasonText, reason === item && styles.reasonTextActive]}>{item}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {reason === 'Lý do khác' && (
+                  <TextInput
+                    style={styles.input}
+                    value={customReason}
+                    onChangeText={setCustomReason}
+                    placeholder="Nhập lý do cụ thể"
+                    placeholderTextColor={T.color.placeholder}
+                    multiline
+                  />
+                )}
+                <Pressable onPress={() => setAcknowledged((value) => !value)} style={styles.acknowledgement}>
+                  <FontAwesome name={acknowledged ? 'check-square' : 'square-o'} size={21} color={acknowledged ? T.color.primary : T.color.text3} />
+                  <Text style={styles.acknowledgementText}>Tôi đã xem và đồng ý với phí hủy, số tiền hoàn vào Ví BookEat nêu trên.</Text>
+                </Pressable>
+              </>
+            )}
+          </>
         )}
       </ScrollView>
 
-      {/* ─── Bottom Action Bar ─── */}
-      <View style={styles.bottomBar}>
-        <Button
-          label="Xác nhận hủy đặt bàn"
-          variant={submitting ? 'loading' : 'destructive'}
-          onPress={handleCancelBooking}
-          style={styles.confirmBtn}
-        />
-        <Button
-          label="Quay lại"
-          variant="secondary"
-          onPress={() => router.back()}
-          style={styles.cancelBtn}
-        />
-      </View>
+      {preview?.canCancel && !error && (
+        <View style={styles.bottomBar}>
+          <Button
+            label={submitting ? 'Đang hủy...' : 'Xác nhận hủy đặt bàn'}
+            variant={submitting ? 'loading' : acknowledged ? 'destructive' : 'disabled'}
+            onPress={submit}
+          />
+        </View>
+      )}
     </View>
   );
 }
 
+function MoneyRow({ label, value, negative = false }: { label: string; value: number; negative?: boolean }) {
+  return <View style={styles.moneyRow}><Text style={styles.moneyLabel}>{label}</Text><Text style={negative && value > 0 ? styles.feeValue : styles.moneyValue}>{negative && value > 0 ? '-' : ''}{formatCurrency(value)}</Text></View>;
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: T.color.bg,
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: T.color.bg,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: T.space.lg,
-    paddingBottom: T.space.md,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.03)',
-  },
-  backBtn: {
-    marginRight: T.space.md,
-  },
-  headerTextWrapper: {
-    flex: 1,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  scrollContent: {
-    paddingBottom: 150,
-  },
-  warningBox: {
-    backgroundColor: 'rgba(212, 150, 83, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(212, 150, 83, 0.15)',
-    borderRadius: T.radius.lg,
-    padding: T.space.lg,
-    margin: T.space.lg,
-    alignItems: 'center',
-  },
-  warningTitle: {
-    color: T.color.primary,
-    fontWeight: '700',
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  warningText: {
-    color: T.color.text2,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  sectionTitle: {
-    color: '#FFFFFF',
-    paddingHorizontal: T.space.lg,
-    marginTop: T.space.md,
-    marginBottom: T.space.md,
-  },
-  reasonsGrid: {
-    paddingHorizontal: T.space.lg,
-    gap: 10,
-  },
-  reasonChip: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  customReasonBox: {
-    paddingHorizontal: T.space.lg,
-    marginTop: T.space.lg,
-  },
-  fieldLabel: {
-    color: T.color.text2,
-    fontSize: 12,
-    fontWeight: '500',
-    marginBottom: T.space.xs,
-  },
-  input: {
-    backgroundColor: T.color.card,
-    borderRadius: T.radius.md,
-    borderWidth: 1,
-    borderColor: T.color.border,
-    padding: T.space.md,
-    color: '#FFFFFF',
-    fontSize: 13,
-    minHeight: 80,
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#0C0F16',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
-    paddingHorizontal: T.space.lg,
-    paddingTop: T.space.md,
-    paddingBottom: T.space.lg,
-    gap: 10,
-  },
-  confirmBtn: {
-    width: '100%',
-  },
-  cancelBtn: {
-    width: '100%',
-  },
+  container: { flex: 1, backgroundColor: T.color.bg },
+  center: { flex: 1, backgroundColor: T.color.bg, alignItems: 'center', justifyContent: 'center' },
+  header: { paddingTop: 60, paddingHorizontal: T.space.lg, paddingBottom: T.space.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: T.color.border },
+  backButton: { marginRight: T.space.md },
+  title: { color: T.color.text1, fontWeight: '700' },
+  content: { padding: T.space.lg, paddingBottom: 130, gap: T.space.lg },
+  notice: { flexDirection: 'row', gap: T.space.md, padding: T.space.lg, borderRadius: T.radius.lg, borderWidth: 1, borderColor: 'rgba(212,150,83,0.28)', backgroundColor: 'rgba(212,150,83,0.08)' },
+  closedNotice: { borderColor: 'rgba(244,63,94,0.28)', backgroundColor: 'rgba(244,63,94,0.07)' },
+  noticeCopy: { flex: 1 }, noticeTitle: { color: T.color.text1, fontSize: 15, fontWeight: '700', marginBottom: 5 }, noticeText: { color: T.color.text2, fontSize: 13, lineHeight: 19 },
+  moneyCard: { borderRadius: T.radius.lg, borderWidth: 1, borderColor: T.color.border, backgroundColor: T.color.card, padding: T.space.lg, gap: T.space.md },
+  eyebrow: { color: T.color.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  moneyRow: { flexDirection: 'row', justifyContent: 'space-between', gap: T.space.md }, moneyLabel: { flex: 1, color: T.color.text2, fontSize: 13 }, moneyValue: { color: T.color.text1, fontSize: 13, fontWeight: '700' }, feeValue: { color: T.color.error, fontSize: 13, fontWeight: '700' },
+  divider: { height: 1, backgroundColor: T.color.border }, refundRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: T.space.md }, refundLabel: { color: T.color.text1, fontWeight: '700' }, refundValue: { color: T.color.success, fontSize: 21, fontWeight: '800' }, serverNote: { color: T.color.text3, fontSize: 11, lineHeight: 16 },
+  sectionTitle: { color: T.color.text1, fontSize: 16, fontWeight: '700' }, reasonList: { gap: T.space.sm }, reason: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: T.space.md, paddingHorizontal: T.space.md, borderRadius: T.radius.md, borderWidth: 1, borderColor: T.color.border, backgroundColor: T.color.card }, reasonActive: { borderColor: 'rgba(212,150,83,0.5)', backgroundColor: 'rgba(212,150,83,0.08)' }, reasonText: { flex: 1, color: T.color.text2, fontSize: 13 }, reasonTextActive: { color: T.color.text1, fontWeight: '600' },
+  input: { minHeight: 90, color: T.color.text1, backgroundColor: T.color.card, borderWidth: 1, borderColor: T.color.border, borderRadius: T.radius.md, padding: T.space.md, textAlignVertical: 'top' },
+  acknowledgement: { flexDirection: 'row', gap: T.space.md, alignItems: 'flex-start', paddingVertical: T.space.sm }, acknowledgementText: { flex: 1, color: T.color.text2, fontSize: 13, lineHeight: 19 },
+  bottomBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: T.space.lg, paddingTop: T.space.md, paddingBottom: T.space.lg, backgroundColor: T.color.bg, borderTopWidth: 1, borderTopColor: T.color.border },
+  stateCard: { alignItems: 'center', gap: T.space.md, padding: T.space.xl, borderRadius: T.radius.lg, borderWidth: 1, borderColor: T.color.border, backgroundColor: T.color.card }, stateTitle: { color: T.color.text1, fontWeight: '700', fontSize: 16 }, stateText: { color: T.color.text2, fontSize: 13, textAlign: 'center', lineHeight: 19 },
 });

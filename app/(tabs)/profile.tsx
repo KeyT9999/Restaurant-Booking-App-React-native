@@ -425,6 +425,14 @@ export default function ProfileScreen() {
         <View style={styles.menuBox}>
           <Text style={styles.menuGroupTitle}>Tiện ích</Text>
 
+          <Pressable onPress={() => router.push('/wallet' as any)} style={styles.menuItemButton}>
+            <View style={styles.menuLeft}>
+              <FontAwesome name="credit-card" size={16} color={T.color.primary} style={styles.menuIcon} />
+              <Text style={styles.menuText}>Ví BookEat</Text>
+            </View>
+            <FontAwesome name="angle-right" size={18} color={T.color.text3} />
+          </Pressable>
+
           <Pressable onPress={() => router.push('/vouchers')} style={styles.menuItemButton}>
             <View style={styles.menuLeft}>
               <FontAwesome name="ticket" size={16} color={T.color.primary} style={styles.menuIcon} />
